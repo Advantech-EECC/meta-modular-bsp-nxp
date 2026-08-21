@@ -1,3 +1,5 @@
+require common/docker.inc
+
 SRC_URI += " \
     file://${KERNEL_DEVICETREE_BASENAME}.dts;subdir=arch/arm64/boot/dts/freescale \
     file://${KERNEL_DEVICETREE_BASENAME}-auog101uan02.dts;subdir=arch/arm64/boot/dts/freescale \

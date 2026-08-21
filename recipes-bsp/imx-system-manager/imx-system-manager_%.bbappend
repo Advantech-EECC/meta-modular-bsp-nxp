@@ -1,6 +1,6 @@
-FILESEXTRAPATHS:prepend := "${THISDIR}/${PN}:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
-IMX_SYSTEM_MANAGER_SRC = "git://github.com/ADVANTECH-Corp/imx-sm.git;protocol=https"
-SRCBRANCH = "lf-6.12.20-2.0.0-imx95-aom5521a2"
-SRC_URI = "${IMX_SYSTEM_MANAGER_SRC};branch=${SRCBRANCH}"
-SRCREV = "${AUTOREV}"
+SRC_URI:append:aom5521a2-db2510 = " \
+        file://0001-sm-adv-aom5521-m7-resource-ownership.patch  \
+        file://0002-sm-adv-aom5521-i2c-recovery-drop-pcal6408a.patch \
+"

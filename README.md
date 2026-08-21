@@ -8,7 +8,7 @@ For build instructions, check the [README.md in the Advantech fork of the NXP im
 
 Supported Boards
 ================
-
+ 
 The following boards are supported by this layer:
 
  * ROM-2620-CD-A1 1GB (MACHINE=`rom2620-ed91` NXP i.MX 8ULP)

@@ -1,5 +1,5 @@
 SRC_URI += " \
-    file://0001-aom5521a1-update-imx95_evk.h.patch \
+    file://0001-aom5521a2-update-imx95_evk.h.patch \
 "
 
 do_configure:prepend() {

@@ -20,6 +20,7 @@ Fix by:
 - Keeping rtl821x_read_page() as the original simple __phy_read() wrapper
 - Adding RTL_8211F_PHYID constant for the RTL8211F PHY ID (0x001cc916)
 - Removing unused device_node variable from fixup function
+Upstream-Status: Inappropriate [other]
 ---
  drivers/net/phy/realtek/realtek_main.c | 16 +++++++++++++++-
  1 file changed, 15 insertions(+), 1 deletion(-)
