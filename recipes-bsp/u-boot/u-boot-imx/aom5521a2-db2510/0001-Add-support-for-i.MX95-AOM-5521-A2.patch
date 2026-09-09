@@ -1,0 +1,333 @@
+From b344e2bc302d6f7a7e175bdb1452ac647a4586c5 Mon Sep 17 00:00:00 2001
+From: Ramiro Oliveira <ramiro.oliveira@advantech.com>
+Date: Thu, 17 Sep 2026 08:42:26 +0000
+Subject: [PATCH] Add support for i.MX95 AOM-5521-A2
+
+ - Based on https://github.com/ADVANTECH-Corp/uboot-imx Branch: adv_v2025.04_6.12.20-2.0.0
+
+Upstream-Status: Inappropriate [other]
+Signed-off-by: Ramiro Oliveira <ramiro.oliveira@advantech.com>
+---
+ arch/arm/dts/imx95-19x19-evk-local.dtsi       | 60 ++++++++++++++++---
+ arch/arm/dts/imx95-19x19-evk-u-boot.dtsi      | 24 --------
+ board/freescale/imx95_evk/imx95_evk.c         | 30 +++++++++-
+ board/freescale/imx95_evk/imx95_evk.env       |  7 ---
+ drivers/usb/dwc3/gadget.c                     |  3 +
+ .../src/arm64/freescale/imx95-19x19-evk.dts   | 19 ++----
+ include/configs/imx95_evk.h                   |  9 +++
+ 7 files changed, 96 insertions(+), 56 deletions(-)
+
+diff --git a/arch/arm/dts/imx95-19x19-evk-local.dtsi b/arch/arm/dts/imx95-19x19-evk-local.dtsi
+index a6c569bc8ed..e514f7cea7c 100644
+--- a/arch/arm/dts/imx95-19x19-evk-local.dtsi
++++ b/arch/arm/dts/imx95-19x19-evk-local.dtsi
+@@ -63,6 +63,28 @@
+ 		vin-supply = <&reg_serdes_stby>;
+ 		gpio = <&i2c5_pcal6408 3 GPIO_ACTIVE_LOW>;
+ 	};
++
++	reg_1p8v: regulator-1p8v {
++		compatible = "regulator-fixed";
++		regulator-max-microvolt = <1800000>;
++		regulator-min-microvolt = <1800000>;
++		regulator-name = "+V1.8_SW";
++	};
++
++	reg_usb_otg_vbus: regulator-usb-vbus {
++		compatible = "regulator-fixed";
++		regulator-name = "usb_otg_vbus";
++		regulator-min-microvolt = <5000000>;
++		regulator-max-microvolt = <5000000>;
++		gpio = <&gpio_exp2 13 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++		regulator-always-on;
++	};
++
++	extcon_usb_otg: extcon_usb_otg@1 {
++		compatible = "linux,extcon-usb-gpio";
++		id-gpios = <&gpio4 14 GPIO_ACTIVE_HIGH>;
++	};
+ };
+ 
+ &lpi2c2 {
+@@ -74,6 +96,20 @@
+ 	pinctrl-1 = <&pinctrl_lpi2c2>;
+ 	status = "okay";
+ 
++	gpio_exp2: pca6416@21 {
++		compatible = "ti,tca6416";
++		#gpio-cells = <2>;
++		gpio-controller;
++		reg = <0x21>;
++		interrupt-controller;
++		#interrupt-cells = <2>;
++		interrupt-parent = <&gpio2>;
++		interrupts = <23 IRQ_TYPE_LEVEL_LOW>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&pinctrl_gpioexp2>;
++		vcc-supply = <&reg_1p8v>;
++	};
++
+ 	adp5585gpio: gpio@34 {
+ 		compatible = "adi,adp5585";
+ 		reg = <0x34>;
+@@ -150,18 +186,12 @@
+ 
+ &usb3_dwc3 {
+ 	dr_mode = "otg";
+-	hnp-disable;
+-	srp-disable;
+-	adp-disable;
+-	usb-role-switch;
+-	role-switch-default-mode = "none";
+-	snps,dis-u1-entry-quirk;
+-	snps,dis-u2-entry-quirk;
++	pinctrl-0 = <&pinctrl_usb_otg>;
++	extcon = <&extcon_usb_otg>;
++	vbus-supply = <&reg_usb_otg_vbus>;
+ 	status = "okay";
+-
+ 	port {
+ 		usb3_drd_sw: endpoint {
+-			remote-endpoint = <&typec_dr_sw>;
+ 		};
+ 	};
+ };
+@@ -217,12 +247,24 @@
+ 		>;
+ 	};
+ 
++	pinctrl_gpioexp2: gpioexp2grp {
++		fsl,pins = <
++			IMX95_PAD_GPIO_IO23__GPIO2_IO_BIT23			0x31e
++		>;
++	};
++
+ 	pinctrl_ptn5110: ptn5110grp {
+ 		fsl,pins = <
+ 			IMX95_PAD_GPIO_IO34__GPIO5_IO_BIT14			0x31e
+ 		>;
+ 	};
+ 
++	pinctrl_usb_otg: usb_otg_grp {
++		fsl,pins = <
++			IMX95_PAD_ENET2_MDC__GPIO4_IO_BIT14			0x31e
++		>;
++	};
++
+ 	pinctrl_emdio: emdiogrp{
+ 		fsl,pins = <
+ 			IMX95_PAD_ENET1_MDC__NETCMIX_TOP_NETC_MDC		0x57e
+diff --git a/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi b/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi
+index 3c0c2d7b0f2..fc6ec468def 100644
+--- a/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi
++++ b/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi
+@@ -11,8 +11,6 @@
+ 		usb0 = &usb3_dwc3;
+ 		usb1 = &usb2;
+ 		usb_gadget1 = &usbg2;
+-		pci0 = &pcie_4ca00000;
+-		pci1 = &pcie_4cb00000;
+ 	};
+ 
+ 	usbg2: usbg2 {
+@@ -140,10 +138,6 @@
+ 
+ &flexspi1 {
+ 	bootph-pre-ram;
+-
+-	flash@0{
+-		bootph-pre-ram;
+-	};
+ };
+ 
+ &pinctrl_flexspi1 {
+@@ -164,21 +158,3 @@
+ 	assigned-clocks = <&scmi_clk IMX95_CLK_MIPIPHYPLLBYPASS>;
+ 	assigned-clock-parents = <&scmi_clk IMX95_CLK_VIDEOPLL1>;
+ };
+-
+-&pcie0 {
+-	assigned-clocks =<&scmi_clk IMX95_CLK_HSIOPLL_VCO>,
+-			 <&scmi_clk IMX95_CLK_HSIOPLL>,
+-			 <&scmi_clk IMX95_CLK_HSIOPCIEAUX>;
+-	assigned-clock-rates = <3600000000>, <100000000>, <10000000>;
+-	assigned-clock-parents = <0>, <&scmi_clk IMX95_CLK_HSIOPLL_VCO>,
+-				 <&scmi_clk IMX95_CLK_SYSPLL1_PFD1_DIV2>;
+-};
+-
+-&pcie1 {
+-	assigned-clocks =<&scmi_clk IMX95_CLK_HSIOPLL_VCO>,
+-			 <&scmi_clk IMX95_CLK_HSIOPLL>,
+-			 <&scmi_clk IMX95_CLK_HSIOPCIEAUX>;
+-	assigned-clock-rates = <3600000000>, <100000000>, <10000000>;
+-	assigned-clock-parents = <0>, <&scmi_clk IMX95_CLK_HSIOPLL_VCO>,
+-				 <&scmi_clk IMX95_CLK_SYSPLL1_PFD1_DIV2>;
+-};
+diff --git a/board/freescale/imx95_evk/imx95_evk.c b/board/freescale/imx95_evk/imx95_evk.c
+index 9790c610ac7..689f54d7b2a 100644
+--- a/board/freescale/imx95_evk/imx95_evk.c
++++ b/board/freescale/imx95_evk/imx95_evk.c
+@@ -45,6 +45,32 @@ struct efi_capsule_update_info update_info = {
+ };
+ #endif /* EFI_HAVE_CAPSULE_SUPPORT */
+ 
++static void setup_iomux_swrst(void)
++{
++	int ret;
++	struct gpio_desc desc;
++
++	printf("[ADVANTECH] setup_iomux_swrst\n");
++
++	ret = dm_gpio_lookup_name("GPIO2_27", &desc);
++	if (ret) {
++		printf("%s lookup GPIO2_27 failed ret = %d\n", __func__, ret);
++		return;
++	}
++
++	ret = dm_gpio_request(&desc, "SW_RESET_OUT");
++	if (ret) {
++		printf("%s request SW_RESET_OUT failed ret = %d\n", __func__, ret);
++		return;
++	}
++
++	/* assert the SW_RESET_OUT */
++	dm_gpio_set_dir_flags(&desc, GPIOD_IS_OUT | GPIOD_IS_OUT_ACTIVE | GPIOD_ACTIVE_LOW);
++	udelay(10000);
++	dm_gpio_set_value(&desc, 0); /* deassert the SW_RESET_OUT */
++	udelay(80000);
++}
++
+ int board_early_init_f(void)
+ {
+ 	/* UART1: A55, UART2: M33, UART3: M7 */
+@@ -469,9 +495,7 @@ int board_init(void)
+ 	setup_typec();
+ #endif
+ 
+-#if IS_ENABLED(CONFIG_TARGET_IMX95_19X19_EVK)
+-	netc_regulator_enable("regulator-m2-pwr", true);
+-#endif
++	setup_iomux_swrst();
+ 
+ 	netc_init();
+ 
+diff --git a/board/freescale/imx95_evk/imx95_evk.env b/board/freescale/imx95_evk/imx95_evk.env
+index 7afa9a66d68..aabf829a810 100644
+--- a/board/freescale/imx95_evk/imx95_evk.env
++++ b/board/freescale/imx95_evk/imx95_evk.env
+@@ -7,8 +7,6 @@ fdt_high=0xffffffffffffffff
+ initrd_high=0xffffffffffffffff
+ emmc_dev=0
+ sd_dev=1
+-boot_devices_mmcblk0=soc/42800000.bus/42850000.mmc
+-boot_devices_mmcblk1=soc/42800000.bus/42860000.mmc
+ #else
+ 
+ #ifdef CONFIG_AHAB_BOOT
+@@ -62,11 +60,6 @@ xenboot_common=${get_cmd} ${loadaddr} xen;
+ xennetboot=setenv get_cmd dhcp;setenv console ${xenlinux_console};setenv jh_clk kvm.enable_virt_at_load=false clk_ignore_unused;run netargs;run xenboot_common;
+ xenmmcboot=setenv get_cmd "fatload mmc ${mmcdev}:${mmcpart}";setenv console ${xenlinux_console};setenv jh_clk kvm.enable_virt_at_load=false clk_ignore_unused;run mmcargs;run xenboot_common;
+ 
+-sr_ir_v2_cmd=cp.b ${fdtcontroladdr} ${fdt_addr_r} 0x10000; fdt addr ${fdt_addr_r};
+-	fdt set /soc/bus@44000000/mailbox@445b0000/sram@445b1000/scmi-sram-section@0 reg <0x00000000 0x00000080>;
+-	fdt rm /soc/mailbox@47530000;
+-	fdt rm /soc/usb@4c010010;
+-
+ initrd_addr=0x93800000
+ initrd_high=0xffffffffffffffff
+ emmc_dev=0
+diff --git a/drivers/usb/dwc3/gadget.c b/drivers/usb/dwc3/gadget.c
+index 6421eaaac50..fdf72925634 100644
+--- a/drivers/usb/dwc3/gadget.c
++++ b/drivers/usb/dwc3/gadget.c
+@@ -1459,6 +1459,9 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
+ 	ret = dwc3_gadget_run_stop(dwc, is_on, false);
+ 	spin_unlock_irqrestore(&dwc->lock, flags);
+ 
++	//TODO: Check if needed
++ 	udelay(6000); // Fixed OTG device mode issue
++
+ 	return ret;
+ }
+ 
+diff --git a/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts b/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
+index 6086cb7fa5a..1975d06ed07 100644
+--- a/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
++++ b/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
+@@ -198,17 +198,14 @@
+ 	pinctrl-0 = <&pinctrl_flexspi1>;
+ 	status = "okay";
+ 
+-	flash@0 {
+-		compatible = "jedec,spi-nor";
++	flash0: w25q64jwssiq@0 {
++		compatible = "jedec,spi-nor", "winbond,w25q64";
+ 		reg = <0>;
+-		pinctrl-names = "default";
+-		pinctrl-0 = <&pinctrl_flexspi1_reset>;
+-		reset-gpios = <&gpio5 11 GPIO_ACTIVE_LOW>;
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+-		spi-max-frequency = <200000000>;
+-		spi-tx-bus-width = <8>;
+-		spi-rx-bus-width = <8>;
++		spi-max-frequency = <29000000>;
++		spi-tx-bus-width = <4>;
++		spi-rx-bus-width = <4>;
+ 	};
+ };
+ 
+@@ -432,16 +429,12 @@
+ 	pinctrl_flexspi1: flexspi1grp {
+ 		fsl,pins = <
+ 			IMX95_PAD_XSPI1_SS0_B__FLEXSPI1_A_SS0_B			0x3fe
++			IMX95_PAD_XSPI1_SS1_B__FLEXSPI1_A_SS1_B			0x3fe
+ 			IMX95_PAD_XSPI1_SCLK__FLEXSPI1_A_SCLK			0x3fe
+-			IMX95_PAD_XSPI1_DQS__FLEXSPI1_A_DQS			0x3fe
+ 			IMX95_PAD_XSPI1_DATA0__FLEXSPI1_A_DATA_BIT0		0x3fe
+ 			IMX95_PAD_XSPI1_DATA1__FLEXSPI1_A_DATA_BIT1		0x3fe
+ 			IMX95_PAD_XSPI1_DATA2__FLEXSPI1_A_DATA_BIT2		0x3fe
+ 			IMX95_PAD_XSPI1_DATA3__FLEXSPI1_A_DATA_BIT3		0x3fe
+-			IMX95_PAD_XSPI1_DATA4__FLEXSPI1_A_DATA_BIT4		0x3fe
+-			IMX95_PAD_XSPI1_DATA5__FLEXSPI1_A_DATA_BIT5		0x3fe
+-			IMX95_PAD_XSPI1_DATA6__FLEXSPI1_A_DATA_BIT6		0x3fe
+-			IMX95_PAD_XSPI1_DATA7__FLEXSPI1_A_DATA_BIT7		0x3fe
+ 		>;
+ 	};
+ 
+diff --git a/include/configs/imx95_evk.h b/include/configs/imx95_evk.h
+index 76ed51534c6..459e2f14e9b 100644
+--- a/include/configs/imx95_evk.h
++++ b/include/configs/imx95_evk.h
+@@ -10,18 +10,27 @@
+ #include <linux/stringify.h>
+ #include <asm/arch/imx-regs.h>
+ 
++#define CFG_HAS_ETH1 1
++#define CFG_HAS_ETH2 1
++
+ #define CFG_SYS_INIT_RAM_ADDR	0x90000000
+ #define CFG_SYS_INIT_RAM_SIZE	0x200000
+ 
+ #define CFG_SYS_SDRAM_BASE		0x90000000
+ #define PHYS_SDRAM				0x90000000
+ 
++#if defined(CONFIG_TARGET_IMX95_AOM5521A2_8G)
++/* Totally 8GB */
++#define PHYS_SDRAM_SIZE			0x70000000UL /* 2GB  - 256MB DDR */
++#define PHYS_SDRAM_2_SIZE		0x180000000UL /* 6GB */
++#else
+ #define PHYS_SDRAM_SIZE			0x70000000 /* 2GB - 256MB DDR */
+ #ifdef CONFIG_TARGET_IMX95_15X15_EVK
+ #define PHYS_SDRAM_2_SIZE 		0x180000000UL /* 6GB */
+ #else
+ #define PHYS_SDRAM_2_SIZE		0x380000000 /* 14GB */
+ #endif
++#endif
+ 
+ #define CFG_SYS_SECURE_SDRAM_BASE	0x8A000000 /* Secure DDR region for A55, SPL could use first 2MB */
+ #define CFG_SYS_SECURE_SDRAM_SIZE	0x06000000
+-- 
+2.43.0
+
