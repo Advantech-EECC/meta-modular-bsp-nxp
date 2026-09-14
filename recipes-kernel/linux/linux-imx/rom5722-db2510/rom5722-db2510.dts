@@ -216,8 +216,6 @@
 	status = "okay";
 };
 
-#if 0
-	/* TODO/FIXME: the eth's make the system freeze at boot with y5.3 */
 &eqos {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_eqos>;
@@ -334,7 +332,6 @@
 		};
 	};
 };
-#endif
 
 &flexcan1 {
 	pinctrl-names = "default";
