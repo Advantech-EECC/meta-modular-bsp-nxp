@@ -1,47 +1,206 @@
-From 17930df59947bbc5e5e98afbc6767feefd5a513b Mon Sep 17 00:00:00 2001
-From: Mikhail Tsukerman <mikhail.tsukerman@advantech.de>
-Date: Tue, 10 Feb 2026 15:39:20 +0100
-Subject: [PATCH] aom5521a1: update imx95_evk.h
-
-We have only 8Gb of RAM
+From 7f6952f122e378a3255ad5db8f38d6a3a97b4d55 Mon Sep 17 00:00:00 2001
+From: Mikhail Tsukerman <miketsukerman@gmail.com>
+Date: Tue, 29 Sep 2026 14:25:03 +0200
+Subject: [PATCH] AOM5521 A2 fixes
 
 Upstream-Status: Inappropriate [other]
-Signed-off-by: Mikhail Tsukerman <mikhail.tsukerman@advantech.com>
-
 ---
- include/configs/imx95_evk.h | 12 ++++++------
- 1 file changed, 6 insertions(+), 6 deletions(-)
+ arch/arm/dts/imx95-19x19-evk-u-boot.dtsi      |  2 +-
+ board/nxp/imx95_evk/Kconfig                   |  4 ++
+ board/nxp/imx95_evk/imx95_evk.c               | 29 ++++++++++-
+ .../src/arm64/freescale/imx95-19x19-evk.dts   | 52 ++++++++++++++-----
+ include/configs/imx95_evk.h                   |  6 ++-
+ 5 files changed, 75 insertions(+), 18 deletions(-)
 
+diff --git a/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi b/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi
+index da9d4863864..06bc88be705 100644
+--- a/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi
++++ b/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi
+@@ -152,7 +152,7 @@
+ &flexspi1 {
+ 	bootph-pre-ram;
+ 
+-	flash@0{
++	w25q64jwssiq@0{
+ 		bootph-pre-ram;
+ 	};
+ };
+diff --git a/board/nxp/imx95_evk/Kconfig b/board/nxp/imx95_evk/Kconfig
+index fb255eda731..80ca3eeae9f 100644
+--- a/board/nxp/imx95_evk/Kconfig
++++ b/board/nxp/imx95_evk/Kconfig
+@@ -9,4 +9,8 @@ config SYS_VENDOR
+ config SYS_CONFIG_NAME
+ 	default "imx95_evk"
+ 
++config IMX95_AOM5521A2_8G
++	bool "Advantech AOM-5521-A2 with 8 GiB DRAM"
++	depends on TARGET_IMX95_19X19_EVK
++
+ endif
+diff --git a/board/nxp/imx95_evk/imx95_evk.c b/board/nxp/imx95_evk/imx95_evk.c
+index b933946a479..2e635cda3b3 100644
+--- a/board/nxp/imx95_evk/imx95_evk.c
++++ b/board/nxp/imx95_evk/imx95_evk.c
+@@ -45,6 +45,30 @@ struct efi_capsule_update_info update_info = {
+ };
+ #endif /* EFI_HAVE_CAPSULE_SUPPORT */
+ 
++static void setup_iomux_swrst(void)
++{
++	int ret;
++	struct gpio_desc desc;
++
++	ret = dm_gpio_lookup_name("GPIO2_27", &desc);
++	if (ret) {
++		printf("%s lookup GPIO2_27 failed ret = %d\n", __func__, ret);
++		return;
++	}
++
++	ret = dm_gpio_request(&desc, "SW_RESET_OUT");
++	if (ret) {
++		printf("%s request SW_RESET_OUT failed ret = %d\n", __func__, ret);
++		return;
++	}
++
++	dm_gpio_set_dir_flags(&desc, GPIOD_IS_OUT | GPIOD_IS_OUT_ACTIVE |
++			      GPIOD_ACTIVE_LOW);
++	udelay(10000);
++	dm_gpio_set_value(&desc, 0);
++	udelay(80000);
++}
++
+ #ifdef CONFIG_USB_TCPC
+ struct tcpc_port port;
+ #ifdef CONFIG_TARGET_IMX95_15X15_EVK
+@@ -359,7 +383,10 @@ int board_init(void)
+ #endif
+ 
+ #if IS_ENABLED(CONFIG_TARGET_IMX95_19X19_EVK)
+-	netc_regulator_enable("regulator-m2-pwr", true);
++	if (IS_ENABLED(CONFIG_IMX95_AOM5521A2_8G))
++		setup_iomux_swrst();
++	else
++		netc_regulator_enable("regulator-m2-pwr", true);
+ #endif
+ 
+ 	netc_init();
+diff --git a/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts b/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
+index 9f968feccef..b7079a3ed14 100644
+--- a/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
++++ b/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
+@@ -145,6 +145,22 @@
+ 		startup-delay-us = <5000>;
+ 	};
+ 
++	reg_usb_otg_vbus: regulator-usb-otg-vbus {
++		compatible = "regulator-fixed";
++		regulator-name = "usb_otg_vbus";
++		regulator-min-microvolt = <5000000>;
++		regulator-max-microvolt = <5000000>;
++		gpio = <&gpio_exp2 13 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++	};
++
++	extcon_usb_otg: extcon-usb-otg {
++		compatible = "linux,extcon-usb-gpio";
++		pinctrl-names = "default";
++		pinctrl-0 = <&pinctrl_usb_otg>;
++		id-gpios = <&gpio4 14 GPIO_ACTIVE_HIGH>;
++	};
++
+ 	reg_pcie0: regulator-pcie {
+ 		compatible = "regulator-fixed";
+ 		regulator-name = "PCIE_WLAN_EN";
+@@ -267,17 +283,14 @@
+ 	pinctrl-0 = <&pinctrl_flexspi1>;
+ 	status = "okay";
+ 
+-	flash@0 {
+-		compatible = "jedec,spi-nor";
++	flash0: w25q64jwssiq@0 {
++		compatible = "jedec,spi-nor", "winbond,w25q64";
+ 		reg = <0>;
+-		pinctrl-names = "default";
+-		pinctrl-0 = <&pinctrl_flexspi1_reset>;
+-		reset-gpios = <&gpio5 11 GPIO_ACTIVE_LOW>;
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+-		spi-max-frequency = <200000000>;
+-		spi-tx-bus-width = <8>;
+-		spi-rx-bus-width = <8>;
++		spi-max-frequency = <29000000>;
++		spi-tx-bus-width = <4>;
++		spi-rx-bus-width = <4>;
+ 	};
+ };
+ 
+@@ -287,6 +300,15 @@
+ 	pinctrl-0 = <&pinctrl_lpi2c2>;
+ 	status = "okay";
+ 
++	gpio_exp2: gpio@21 {
++		compatible = "nxp,pcal6416";
++		reg = <0x21>;
++		gpio-controller;
++		#gpio-cells = <2>;
++		vcc-supply = <&reg_vref_1v8>;
++	};
++
++
+ 	adp5585: io-expander@34 {
+ 		compatible = "adi,adp5585-00", "adi,adp5585";
+ 		reg = <0x34>;
+@@ -623,12 +645,8 @@
+ &usb3_dwc3 {
+ 	dr_mode = "otg";
+ 	hnp-disable;
+-	srp-disable;
+-	adp-disable;
+-	usb-role-switch;
+-	role-switch-default-mode = "peripheral";
+-	snps,dis-u1-entry-quirk;
+-	snps,dis-u2-entry-quirk;
++	extcon = <&extcon_usb_otg>;
++	vbus-supply = <&reg_usb_otg_vbus>;
+ 	status = "okay";
+ 
+ 	port {
+@@ -693,6 +711,12 @@
+ };
+ 
+ &scmi_iomuxc {
++	pinctrl_usb_otg: usb-otg-grp {
++		fsl,pins = <
++			IMX95_PAD_ENET2_MDC__GPIO4_IO_BIT14			0x31e
++		>;
++	};
++
+ 	pinctrl_emdio: emdiogrp {
+ 		fsl,pins = <
+ 			IMX95_PAD_ENET1_MDC__NETCMIX_TOP_NETC_MDC		0x50e
 diff --git a/include/configs/imx95_evk.h b/include/configs/imx95_evk.h
-index 2de348a1a76..6c5f320767f 100644
+index 2de348a1a76..723f4e6f950 100644
 --- a/include/configs/imx95_evk.h
 +++ b/include/configs/imx95_evk.h
-@@ -10,18 +10,18 @@
- #include <linux/stringify.h>
- #include <asm/arch/imx-regs.h>
- 
-+#define CFG_HAS_ETH1	1
-+#define CFG_HAS_ETH2	1
-+
- #define CFG_SYS_INIT_RAM_ADDR	0x90000000
- #define CFG_SYS_INIT_RAM_SIZE	0x200000
- 
- #define CFG_SYS_SDRAM_BASE		0x90000000
+@@ -17,7 +17,9 @@
  #define PHYS_SDRAM				0x90000000
  
--#define PHYS_SDRAM_SIZE			0x70000000 /* 2GB - 256MB DDR */
+ #define PHYS_SDRAM_SIZE			0x70000000 /* 2GB - 256MB DDR */
 -#ifdef CONFIG_TARGET_IMX95_15X15_EVK
--#define PHYS_SDRAM_2_SIZE		0x180000000 /* 6GB (Totally 8GB) */
--#else
--#define PHYS_SDRAM_2_SIZE		0x380000000 /* 14GB (Totally 16GB) */
--#endif
-+/* Totally 8GB */
-+#define PHYS_SDRAM_SIZE			0x70000000UL /* 2GB - 256MB DDR */
-+#define PHYS_SDRAM_2_SIZE		0x180000000UL /* 6GB */
++#if defined(CONFIG_IMX95_AOM5521A2_8G)
++#define PHYS_SDRAM_2_SIZE		0x180000000UL
++#elif defined(CONFIG_TARGET_IMX95_15X15_EVK)
+ #define PHYS_SDRAM_2_SIZE		0x180000000 /* 6GB (Totally 8GB) */
+ #else
+ #define PHYS_SDRAM_2_SIZE		0x380000000 /* 14GB (Totally 16GB) */
+@@ -32,4 +34,4 @@
+ #include "imx95_evk_android.h"
+ #endif
  
- #define CFG_SYS_SECURE_SDRAM_BASE	0x8A000000 /* Secure DDR region for A55, SPL could use first 2MB */
- #define CFG_SYS_SECURE_SDRAM_SIZE	0x06000000
+-#endif
++#endif /* __IMX95_EVK_H */
+\ No newline at end of file
 -- 
 2.43.0
-
 
