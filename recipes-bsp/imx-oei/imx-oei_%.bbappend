@@ -1,6 +1,10 @@
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI:append:aom5521a2-db2510 = " \
-				    file://0001-oei-add-imx95-aom5521a2-8G-lpddr5.patch \
+				    file://adv-imx95-8G-lpddr5.c;subdir=boards/mx95lp5/ddr/  \
                     "
-SRCREV:aom5521a2-db2510 = "9f2da5cde3c68a3bb20a25770e8f6ed485072c40"
+
+do_configure:prepend:aom5521a2-db2510() {
+	cp "${UNPACKDIR}/boards/mx95lp5/ddr/adv-imx95-8G-lpddr5.c" \
+            "${S}/boards/mx95lp5/ddr/MIMX95_LPDDR5_EVK_19X19_6400MTS_FW2024.09_timing.c"
+}
