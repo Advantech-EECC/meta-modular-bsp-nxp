@@ -1,12 +1,9 @@
-From b344e2bc302d6f7a7e175bdb1452ac647a4586c5 Mon Sep 17 00:00:00 2001
-From: Ramiro Oliveira <ramiro.oliveira@advantech.com>
-Date: Thu, 17 Sep 2026 08:42:26 +0000
-Subject: [PATCH] Add support for i.MX95 AOM-5521-A2
-
- - Based on https://github.com/ADVANTECH-Corp/uboot-imx Branch: adv_v2025.04_6.12.20-2.0.0
+From b2dd1ff47a42b1af634b7a374f00408c23f0006b Mon Sep 17 00:00:00 2001
+From: Mikhail Tsukerman <miketsukerman@gmail.com>
+Date: Thu, 1 Oct 2026 08:57:49 +0200
+Subject: [PATCH] Modify imx95 EVK configuration to support AOM5521 A2 module
 
 Upstream-Status: Inappropriate [other]
-Signed-off-by: Ramiro Oliveira <ramiro.oliveira@advantech.com>
 ---
  arch/arm/dts/imx95-19x19-evk-local.dtsi       | 60 ++++++++++++++++---
  arch/arm/dts/imx95-19x19-evk-u-boot.dtsi      | 24 --------
@@ -14,8 +11,8 @@ Signed-off-by: Ramiro Oliveira <ramiro.oliveira@advantech.com>
  board/freescale/imx95_evk/imx95_evk.env       |  7 ---
  drivers/usb/dwc3/gadget.c                     |  3 +
  .../src/arm64/freescale/imx95-19x19-evk.dts   | 19 ++----
- include/configs/imx95_evk.h                   |  9 +++
- 7 files changed, 96 insertions(+), 56 deletions(-)
+ include/configs/imx95_evk.h                   | 12 ++--
+ 7 files changed, 93 insertions(+), 62 deletions(-)
 
 diff --git a/arch/arm/dts/imx95-19x19-evk-local.dtsi b/arch/arm/dts/imx95-19x19-evk-local.dtsi
 index a6c569bc8ed..e514f7cea7c 100644
@@ -297,10 +294,10 @@ index 6086cb7fa5a..1975d06ed07 100644
  	};
  
 diff --git a/include/configs/imx95_evk.h b/include/configs/imx95_evk.h
-index 76ed51534c6..459e2f14e9b 100644
+index 76ed51534c6..f6344de2379 100644
 --- a/include/configs/imx95_evk.h
 +++ b/include/configs/imx95_evk.h
-@@ -10,18 +10,27 @@
+@@ -10,18 +10,18 @@
  #include <linux/stringify.h>
  #include <asm/arch/imx-regs.h>
  
@@ -313,18 +310,15 @@ index 76ed51534c6..459e2f14e9b 100644
  #define CFG_SYS_SDRAM_BASE		0x90000000
  #define PHYS_SDRAM				0x90000000
  
-+#if defined(CONFIG_TARGET_IMX95_AOM5521A2_8G)
+-#define PHYS_SDRAM_SIZE			0x70000000 /* 2GB - 256MB DDR */
+-#ifdef CONFIG_TARGET_IMX95_15X15_EVK
+-#define PHYS_SDRAM_2_SIZE 		0x180000000UL /* 6GB */
+-#else
+-#define PHYS_SDRAM_2_SIZE		0x380000000 /* 14GB */
+-#endif
 +/* Totally 8GB */
 +#define PHYS_SDRAM_SIZE			0x70000000UL /* 2GB  - 256MB DDR */
 +#define PHYS_SDRAM_2_SIZE		0x180000000UL /* 6GB */
-+#else
- #define PHYS_SDRAM_SIZE			0x70000000 /* 2GB - 256MB DDR */
- #ifdef CONFIG_TARGET_IMX95_15X15_EVK
- #define PHYS_SDRAM_2_SIZE 		0x180000000UL /* 6GB */
- #else
- #define PHYS_SDRAM_2_SIZE		0x380000000 /* 14GB */
- #endif
-+#endif
  
  #define CFG_SYS_SECURE_SDRAM_BASE	0x8A000000 /* Secure DDR region for A55, SPL could use first 2MB */
  #define CFG_SYS_SECURE_SDRAM_SIZE	0x06000000
