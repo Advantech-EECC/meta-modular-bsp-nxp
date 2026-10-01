@@ -1,21 +1,21 @@
-From 58477a1136d5abde1f1ff4e382550f35532b1532 Mon Sep 17 00:00:00 2001
+From a979f9077abd71decb2351253cc9317e1a4607bb Mon Sep 17 00:00:00 2001
 From: Mikhail Tsukerman <miketsukerman@gmail.com>
-Date: Wed, 30 Sep 2026 21:12:07 +0200
-Subject: [PATCH] imx95: Update device tree and board files for USB OTG and
- flash configuration
+Date: Thu, 1 Oct 2026 15:04:12 +0200
+Subject: [PATCH] imx95: Update device tree and board files for AOM-5521 MAC
+ address handling
 
-- Rename flash node in device tree to w25q64jwssiq@0 and adjust SPI parameters.
-- Add USB OTG regulator and extcon configuration in device tree.
-- Implement GPIO setup for SW_RESET_OUT in board initialization.
-- Modify SDRAM size definitions in header file for clarity.
+- Change flash node name in device tree for consistency.
+- Add support for reading MAC addresses from SPI NOR for AOM-5521.
+- Introduce USB OTG regulator and GPIO configurations in device tree.
+- Refactor memory size definitions in header file for clarity.
 
-Upstream-Status: Inappropriate [other]
+Upstream-Status: Inappropriate [board-specific]
 ---
  arch/arm/dts/imx95-19x19-evk-u-boot.dtsi      |  2 +-
- board/nxp/imx95_evk/imx95_evk.c               | 29 ++++++++++-
- .../src/arm64/freescale/imx95-19x19-evk.dts   | 52 ++++++++++++++-----
- include/configs/imx95_evk.h                   | 11 ++--
- 4 files changed, 71 insertions(+), 23 deletions(-)
+ board/nxp/imx95_evk/imx95_evk.c               | 87 ++++++++++++++++++-
+ .../src/arm64/freescale/imx95-19x19-evk.dts   | 52 ++++++++---
+ include/configs/imx95_evk.h                   | 11 +--
+ 4 files changed, 128 insertions(+), 24 deletions(-)
 
 diff --git a/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi b/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi
 index da9d4863864..06bc88be705 100644
@@ -31,10 +31,78 @@ index da9d4863864..06bc88be705 100644
  	};
  };
 diff --git a/board/nxp/imx95_evk/imx95_evk.c b/board/nxp/imx95_evk/imx95_evk.c
-index b933946a479..2e635cda3b3 100644
+index e81fb71c6cb..6c03a4c55cd 100644
 --- a/board/nxp/imx95_evk/imx95_evk.c
 +++ b/board/nxp/imx95_evk/imx95_evk.c
-@@ -45,6 +45,30 @@ struct efi_capsule_update_info update_info = {
+@@ -27,9 +27,66 @@
+ #include <asm/arch/sys_proto.h>
+ #include <dm/uclass.h>
+ #include <dm/uclass-internal.h>
+-
++#include <net.h>
++#include <spi_flash.h>
++ 
+ extern int board_fix_fdt_fuse(void *fdt);
+ 
++/*
+++ * AOM-5521 keeps its MAC addresses in the module's SPI NOR. The
+++ * Advantech factory test tool ("[CONFIG] - [Ethernet0..2 MAC] setting") writes
+++ * one record per port into the FlexSPI NOR on the SMARC module, starting at
+++ * 0xd0000 (768 KiB + 8 x 8 KiB) and 1 KiB apart; each record begins with the
+++ * six MAC bytes, followed by the serial number and the manufacturing date.
+++ * The Yocto 5.2 U-Boot read them back the same way.
+++ *
+++ * Record N goes to ethNaddr, i.e. to the port behind alias ethernetN: eth0 is
+++ * GBE0 (PHY address 1, module schematic A201-2 sheet 20) and eth1 is GBE1
+++ * (PHY address 3, sheet 21), in U-Boot and in Linux alike.
+++ *
+++ * This runs before initr_net(), so the Ethernet devices pick the address up
+++ * from the environment when they probe, and fdt_fixup_ethernet() hands the
+++ * same address to the kernel. A record that is blank or not a valid unicast
+++ * address is ignored, leaving the fuse or random address the board would
+++ * otherwise use; the 5.2 fallback to one fixed address is not carried over,
+++ * since every unprogrammed board would then share it.
+++ */
++#define AOM5521_BCFG_OFFSET	0xd0000
++#define AOM5521_BCFG_STRIDE	0x400
++#define AOM5521_BCFG_PORTS	3
++
++static void aom5521_mac_from_nor(void)
++{
++	struct spi_flash *flash;
++	u8 mac[ARP_HLEN];
++	int i;
++
++	flash = spi_flash_probe(CONFIG_SF_DEFAULT_BUS, CONFIG_SF_DEFAULT_CS,
++				CONFIG_SF_DEFAULT_SPEED, CONFIG_SF_DEFAULT_MODE);
++	if (!flash) {
++		printf("[ADVANTECH] MAC: SPI NOR not found\n");
++		return;
++	}
++
++	for (i = 0; i < AOM5521_BCFG_PORTS; i++) {
++		if (spi_flash_read(flash, AOM5521_BCFG_OFFSET +
++				   i * AOM5521_BCFG_STRIDE, ARP_HLEN, mac)) {
++			printf("[ADVANTECH] MAC: SPI NOR read failed\n");
++			break;
++		}
++
++		if (!is_valid_ethaddr(mac)) {
++			printf("[ADVANTECH] eth%d: no MAC programmed\n", i);
++			continue;
++		}
++
++		eth_env_set_enetaddr_by_index("eth", i, mac);
++		printf("[ADVANTECH] eth%d: MAC %pM\n", i, mac);
++	}
++
++	spi_flash_free(flash);
++}
++
+ #if CONFIG_IS_ENABLED(EFI_HAVE_CAPSULE_SUPPORT)
+ #define IMX_BOOT_IMAGE_GUID \
+ 	EFI_GUID(0x2c4db6b3, 0x0b15, 0x4a36, 0xbe, 0xae, \
+@@ -50,6 +107,30 @@ struct efi_capsule_update_info update_info = {
  };
  #endif /* EFI_HAVE_CAPSULE_SUPPORT */
  
@@ -65,18 +133,24 @@ index b933946a479..2e635cda3b3 100644
  #ifdef CONFIG_USB_TCPC
  struct tcpc_port port;
  #ifdef CONFIG_TARGET_IMX95_15X15_EVK
-@@ -359,7 +383,10 @@ int board_init(void)
+@@ -364,7 +445,7 @@ int board_init(void)
  #endif
  
  #if IS_ENABLED(CONFIG_TARGET_IMX95_19X19_EVK)
 -	netc_regulator_enable("regulator-m2-pwr", true);
-+	if (IS_ENABLED(CONFIG_IMX95_AOM5521A2_8G))
-+		setup_iomux_swrst();
-+	else
-+		netc_regulator_enable("regulator-m2-pwr", true);
++	setup_iomux_swrst();
  #endif
  
  	netc_init();
+@@ -419,6 +500,8 @@ int board_late_init(void)
+ 	if (IS_ENABLED(CONFIG_ENV_IS_IN_MMC))
+ 		board_late_mmc_env_init();
+ 
++	aom5521_mac_from_nor();
++
+ 	env_set("sec_boot", "no");
+ #ifdef CONFIG_AHAB_BOOT
+ 	env_set("sec_boot", "yes");
 diff --git a/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts b/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
 index 9f968feccef..b7079a3ed14 100644
 --- a/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
