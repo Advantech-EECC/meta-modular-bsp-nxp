@@ -14,6 +14,8 @@ The following boards are supported by this layer:
  * ROM-2620-CD-A1 1GB (MACHINE=`rom2620-ed91` NXP i.MX 8ULP)
  * ROM-2820-CD-A1 2GB (`rom2820-ed93` NXP i.MX 93)
  * ROM-5620-WU-A1/A2 2GB (`rom5620-db5901` NXP i.MX 8QuadXPlus)
+ * ROM-5721-CD-A1/A2 1GB (`rom5721-db5901-1g` NXP i.MX 8M Mini)
+ * ROM-5721-CQ-A1/A2 2GB (`rom5721-db5901-2g` NXP i.MX 8M Mini)
  * ROM-5722-CQ-A1 6GB (`rom5722-db2510` NXP i.MX 8M Plus)
  * RSB-3720-CD/CQ-A1/A2 6GB A1,A2 (`rsb3720` `rsb3720-6g` NXP i.MX 8M Plus)
  * RSB-3720-CD/CQ-A2 4GB A2 (`rsb3720-4g` NXP i.MX 8M Plus)
@@ -22,9 +24,6 @@ The following boards are supported by this layer:
 Preliminary support:
 
  * ROM-5720-CD/CQ-A2 2GB (`rom5720-db5901` NXP i.MX 8M)
- * ROM-5721-CD-A1/A2 1GB (`rom5721-db5901-1g` NXP i.MX 8M Mini)
- * ROM-5721-CQ-A1/A2 2GB (`rom5721-db5901-2g` NXP i.MX 8M Mini)
-
 
 Supported Linux Features
 ========
@@ -57,7 +56,7 @@ ROM-2620 (on ROM-ED91 carrier board)
 |GPIO A,B,C| ❌ | Need to be accessed from M33 |
 |RTC | ✅ | Internal RTC, supports timer wake events |
 |Watchdog | ✅ | Internal watchdog |
-|Secure Boot AHAB | ✅ |  |
+|Secure Boot | ✅ | Tested with AHAB ecc256-sha256 (no CA flag) + SHA256 SRK certificate table hash + rootfs encryption |
 
 ROM-2820 (on ROM-ED93 carrier board)
 --------
@@ -93,7 +92,7 @@ ROM-2820 (on ROM-ED93 carrier board)
 |RTC0 | ✅ | External I2C RTC (rx8900) |
 |RTC1 | ✅ | Internal RTC, supports timer wake events |
 |Watchdog | ✅ | Internal watchdog |
-|Secure Boot AHAB | ✅ |  |
+|Secure Boot | ✅ | Tested with AHAB ecc256-sha256 (no CA flag) + SHA256 SRK certificate table hash + rootfs encryption |
 
 ROM-5620 (on SOM-DB5901 carrier board)
 --------
@@ -125,9 +124,9 @@ ROM-5620 (on SOM-DB5901 carrier board)
 |GPIO-EXP1 | ✅ | Internal use (PCIE, buttons) |
 |GPIO-EXP2 | ⚠️ | GPIO header - Not tested (cm40_i2c / i2c-4, 0x70) |
 |RTC | ✅ | External I2C RTC (rx8900) |
-|TPM | ✅ | Loaded as module |
+|TPM | ✅ | I2C driver loaded and device present (st33htpm-i2c) |
 |Watchdog | ✅ | External I2C Advantech watchdog (MSP430-based) |
-|Secure Boot | ✅ | Tested with AHAB ecc256-CA-sha256 + SHA512 SRK certificate table hash, without SGK certificate, i.e. signing with the SRK (SPSDK limitation in meta-secure-boot for Yocto >= 5.2) |
+|Secure Boot | ✅ | Tested with AHAB ecc256-CA-sha256 + SHA512 SRK certificate table hash, with and without SGK certificate |
 
 ROM-5720 (on SOM-DB5901 carrier board)
 --------
@@ -166,46 +165,46 @@ MQ: preliminary support, issues with suspend to RAM, external watchdog
 |RTC1 | ✅ | Internal RTC, supports timer wake events |
 |TPM | ❌ | (st33htpm-i2c not yet upstreamed to tpm_tis_i2c.c) |
 |Watchdog | ✅ | External I2C Advantech watchdog (MSP430-based) |
-|Secure Boot HABv4 | ⚠️ | Not tested, likely to work (similar to ROM-5721) |
-
+|Secure Boot | ✅ | Tested with HABv4 rsa2048-sha256 (CA flag enabled) with and without SGK certificate + SHA256 SRK certificate table hash + rootfs encryption |
 
 ROM-5721 (on SOM-DB5901 carrier board)
 --------
 
-CQ: preliminary support
-
 |Device |Status|Comment|
 |-------|------|-------|
-|SDHC0 |  ✅ | eMMC |
-|SDHC2 |  ✅ | SD Card |
-|ETH |  ✅ | 1Gbps |
-|USB1 | ⚠️ | Not tested |
-|USB2 | ⚠️ | Not tested |
-|USB3 | ⚠️ | Not tested |
-|USB-OTG | ❌ |  |
-|MIPI-LVDS | ✅ | AUO G070 and G215 |
+|SDHC0 | ✅ | eMMC |
+|SDHC2 | ✅ | SD Card |
+|ETH | ✅ | 1Gbps |
+|USB1 | ✅ | USB 2.0 |
+|USB2 | ✅ | USB 2.0 |
+|USB-OTG | ✅ |  |
+|MIPI-LVDS | ✅ | AUO G070 and G215 (ROM-5721 CQ/WQ) |
 |UART1| ✅ | COM3 Linux Console (2-wire) |
 |UART2| ⚠️ | M.2 (4-wire) - Not tested |
-|UART3| ❌ | Pending |
-|UART4| ❌ | Pending |
-|I2C1 | ⚠️  | Not tested |
-|I2C2 | ⚠️  | Not tested |
-|I2C3 | ⚠️  | Not tested |
-|I2C4 | ⚠️  | Not tested |
-|M.2 | ⚠️  | Not tested (M.2 key E connector) |
-|PWM1 | ❌ | |
-|PWM2 | ❌ | |
-|PWM3 | ❌ | |
+|UART3 | ✅⚠️ | COM3-B (2-wire, 4-wire HWFC not tested) |
+|I2C1 | ✅ |  |
+|I2C2 | ✅ |  |
+|I2C3 | ✅ |  |
+|I2C4 | ✅ |  |
+|I2C5 | ✅ |  |
+|I2C6 | ✅ |  |
+|I2C7 | ✅ |  |
+|I2C8 | ✅ |  |
+|M.2 | ❌ | UART present, but PCIE not enumerated (pending) |
+|PWM1 | ⚠️ | Enumerated, not tested |
+|PWM2 | ⚠️ | Enumerated, not tested |
+|PWM3 | ⚠️ | Enumerated, not tested |
 |PWM4 | ✅ | LVDS backlight |
 |QSPI0| ✅ | n25q256a (jedec,spi-nor) |
-|GPIO | ⚠️ | Not tested |
+|GPIO SoC | ✅ | gpio1 (WDT, sleep/lid keys, PCIE), gpio2 (SD), gpio3 (LVDS), gpio4 (PHY reset, LVDS blk, LVDS VCC enable), gpio5 (SPI) |
+|GPIO ext | ⚠️ | tca9538 2c-7 (0x73) driver loaded - Not tested |
 |RTC | ✅ | Internal RTC, supports timer wake events |
 |RTC0 | ✅ | External I2C RTC (S35390) |
 |RTC1 | ✅ | Internal RTC, supports timer wake events |
-|TPM | ⚠️  | Not tested (st33htpm-i2c) |
+|TPM | ✅ | I2C driver loaded and device present (st33htpm-i2c) |
 |Watchdog0 | ✅ | Internal watchdog |
 |Watchdog1 | ✅ | External I2C Advantech watchdog (MSP430-based) |
-|Secure Boot HABv4 | ✅ | Tested (full chain of trust + locked boot loader) |
+|Secure Boot | ✅ | Tested with HABv4 rsa2048-sha256 (CA flag enabled) with and without SGK certificate + SHA256 SRK certificate table hash + rootfs encryption |
 
 ROM-5722 (on SOM-DB2510 carrier board)
 --------
@@ -243,8 +242,7 @@ ROM-5722 (on SOM-DB2510 carrier board)
 |RTC1 | ✅ | Internal RTC, supports timer wake events |
 |Watchdog0 | ✅ | Internal watchdog |
 |Watchdog1 | ✅ | External I2C Advantech watchdog (MSP430-based) |
-|Secure Boot HABv4 | ⚠️ | Not tested, likely to work (similar to ROM-5721) |
-
+|Secure Boot | ✅ | Tested with HABv4 rsa2048-sha256 (CA flag enabled) with and without SGK certificate + SHA256 SRK certificate table hash + rootfs encryption |
 
 RSB-3720
 --------
@@ -280,7 +278,7 @@ RSB-3720
 |RTC1 | ✅ | Internal RTC, supports timer wake events |
 |Watchdog0 | ✅ | Internal watchdog |
 |Watchdog1 | ✅ | External I2C Advantech watchdog (MSP430-based) |
-|Secure Boot HABv4 | ⚠️ | Not tested, likely to work (similar to ROM-5721) |
+|Secure Boot | ✅ | Tested with HABv4 rsa2048-sha256 (CA flag enabled) with and without SGK certificate + SHA256 SRK certificate table hash + rootfs encryption |
 
 AOM-5521 (on SOM-DB2510 carrier board)
 --------
@@ -306,4 +304,4 @@ AOM-5521 (on SOM-DB2510 carrier board)
 |PCIe| ✅ | 2x Gen 3.0 (automated test pass) |
 |M.2| ⚠️ | Not tested |
 |mini PCIe| ⚠️ | Not tested |
-|Secure Boot | ⚠️ | Not tested |
+|Secure Boot | ❌ | Work in progress |
