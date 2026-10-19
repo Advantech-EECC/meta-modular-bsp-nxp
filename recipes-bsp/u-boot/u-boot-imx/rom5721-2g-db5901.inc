@@ -2,6 +2,7 @@ SRC_URI += " \
 	file://0001-minimal-differences.patch \
 	file://0002-rom5721-2g-dram.patch \
 	file://lpddr4_timing_rom5721a1_2G.c;subdir=board/freescale/imx8mm_evk \
+    file://usb-disable-tcpc.cfg \
 "
 
 do_configure:prepend() {
