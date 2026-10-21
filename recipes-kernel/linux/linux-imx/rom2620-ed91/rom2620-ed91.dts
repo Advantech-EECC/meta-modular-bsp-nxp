@@ -182,11 +182,9 @@
 	status = "okay";
 };
 
-/* 20250714.adv: removed (Yocto 5.1)
-&ele_mu {
+&ele_fw2 {
 	memory-region = <&ele_reserved>;
 };
-*/
 
 &epxp {
 	status = "okay";
