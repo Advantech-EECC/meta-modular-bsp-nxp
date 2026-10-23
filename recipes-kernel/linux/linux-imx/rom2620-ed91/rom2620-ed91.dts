@@ -545,3 +545,21 @@
 		>;
 	};
 };
+
+// Keep only JR2 and JR3 for the kernel
+
+&sec_jr0 {
+	status = "disabled";
+};
+
+&sec_jr1 {
+	status = "disabled";
+};
+
+&sec_jr2 {
+	status = "okay";
+};
+
+&sec_jr3 {
+	status = "okay";
+};
