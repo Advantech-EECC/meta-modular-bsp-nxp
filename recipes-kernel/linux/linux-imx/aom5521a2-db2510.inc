@@ -1,4 +1,5 @@
 require common/docker.inc
+require common/watchdog_advantech.inc
 
 SRC_URI += " \
     file://${KERNEL_DEVICETREE_BASENAME}.dts;subdir=arch/arm64/boot/dts/freescale \
@@ -49,4 +50,5 @@ do_configure:prepend() {
         echo 'dtb-$(CONFIG_ARCH_MXC) += ${KERNEL_DEVICETREE_BASENAME}-auog101uan02.dtb'
         echo 'dtb-$(CONFIG_ARCH_MXC) += ${KERNEL_DEVICETREE_BASENAME}-sof.dtb'
     ) >> ${S}/arch/arm64/boot/dts/freescale/Makefile
+    watchdog_advantech_patch
 }
