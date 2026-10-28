@@ -1,68 +1,253 @@
-From a979f9077abd71decb2351253cc9317e1a4607bb Mon Sep 17 00:00:00 2001
+From f66d6e4d78d8f25da5fc4b0cad7d294ef0f57fe8 Mon Sep 17 00:00:00 2001
 From: Mikhail Tsukerman <miketsukerman@gmail.com>
 Date: Thu, 1 Oct 2026 15:04:12 +0200
-Subject: [PATCH] imx95: Update device tree and board files for AOM-5521 MAC
- address handling
+Subject: [PATCH] imx95: AOM-5521 on SOM-DB2510 board support
 
-- Change flash node name in device tree for consistency.
-- Add support for reading MAC addresses from SPI NOR for AOM-5521.
-- Introduce USB OTG regulator and GPIO configurations in device tree.
-- Refactor memory size definitions in header file for clarity.
+- Read the Ethernet MAC addresses from the module's SPI NOR.
+- Pulse SW_RESET_OUT# instead of enabling the EVK M.2 regulator.
+- Describe the module's quad W25Q64JW SPI NOR.
+- Add USB OTG VBUS regulator, ID extcon and the PCA6416 at 0x21.
+- Add imx95-aom5521-db2510-u-boot.dtsi describing the module's
+  Ethernet: two RTL8211FSI on RGMII (ENET1 -> PHY@3 -> GBE1,
+  ENET2 -> PHY@1 -> GBE0), shared EMDIO, no switchable PHY supply and
+  no software PHY reset, enetc_port2 disabled.
+- Disable the EVK-only I2C GPIO expanders, CAN and video pipeline,
+  and drop the EVK PHY reset / AQR-MAC regulator handling from
+  netc_init().
+- Set the DDR size to 8 GiB.
 
 Upstream-Status: Inappropriate [board-specific]
 ---
- arch/arm/dts/imx95-19x19-evk-u-boot.dtsi      |  2 +-
- board/nxp/imx95_evk/imx95_evk.c               | 87 ++++++++++++++++++-
- .../src/arm64/freescale/imx95-19x19-evk.dts   | 52 ++++++++---
- include/configs/imx95_evk.h                   | 11 +--
- 4 files changed, 128 insertions(+), 24 deletions(-)
+ arch/arm/dts/imx95-19x19-evk-u-boot.dtsi      |  10 +-
+ arch/arm/dts/imx95-aom5521-db2510-u-boot.dtsi | 163 ++++++++++++++++++
+ board/nxp/imx95_evk/imx95_evk.c               | 138 ++++++++++++---
+ .../src/arm64/freescale/imx95-19x19-evk.dts   |  52 ++++--
+ include/configs/imx95_evk.h                   |  11 +-
+ 5 files changed, 331 insertions(+), 43 deletions(-)
+ create mode 100644 arch/arm/dts/imx95-aom5521-db2510-u-boot.dtsi
 
 diff --git a/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi b/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi
-index da9d4863864..06bc88be705 100644
+index da9d4863864..359d2ff44c2 100644
 --- a/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi
 +++ b/arch/arm/dts/imx95-19x19-evk-u-boot.dtsi
-@@ -152,7 +152,7 @@
+@@ -152,7 +152,15 @@
  &flexspi1 {
  	bootph-pre-ram;
  
 -	flash@0{
 +	w25q64jwssiq@0{
++		bootph-pre-ram;
++	};
++};
++
++#include "imx95-aom5521-db2510-u-boot.dtsi"
++
++&flexspi1 {
++	w25q64jwssiq@0{
  		bootph-pre-ram;
  	};
  };
+diff --git a/arch/arm/dts/imx95-aom5521-db2510-u-boot.dtsi b/arch/arm/dts/imx95-aom5521-db2510-u-boot.dtsi
+new file mode 100644
+index 00000000000..8a1e75a199b
+--- /dev/null
++++ b/arch/arm/dts/imx95-aom5521-db2510-u-boot.dtsi
+@@ -0,0 +1,163 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * AOM-5521 (i.MX95) on SOM-DB2510 - U-Boot board overrides.
++ *
++ * Included from imx95-19x19-evk-u-boot.dtsi, which U-Boot appends to the
++ * board DTS, so everything here overrides the EVK description.
++ *
++ * Module schematic AOM-5521 A101-1, sheets 11, 20, 21:
++ *  - SoC ENET1 pads (enetc_port0) -> RTL8211FSI @ MDIO 3 -> SMARC GBE1
++ *  - SoC ENET2 pads (enetc_port1) -> RTL8211FSI @ MDIO 1 -> SMARC GBE0
++ *  - Shared central EMDIO on ENET1_MDC/ENET1_MDIO.
++ *  - PHY rails always on, PHYRSTB = RESET_OUT_3V3# (POR_B): no phy-supply,
++ *    no reset-gpios. The EVK's aqr/mac regulators and expanders don't exist.
++ *  - RXDLY strapped, RGMII I/O at 1.8 V: rgmii-id.
++ *  - enetc_port2 (USXGMII) -> SMARC SERDES_0, no PHY on module: disabled.
++ */
++
++/ {
++	aliases {
++		ethernet0 = &enetc_port1;	/* GBE0, PHY@1 */
++		ethernet1 = &enetc_port0;	/* GBE1, PHY@3 */
++		/delete-property/ ethernet2;
++	};
++};
++
++&netc_emdio {
++	/delete-property/ phy-supply;
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_emdio>;
++	status = "okay";
++
++	aom_gbe0_phy: ethernet-phy@1 {
++		reg = <1>;
++		realtek,clkout-disable;
++		/delete-property/ phy-supply;
++		/delete-property/ reset-gpios;
++		/delete-property/ reset-assert-us;
++		/delete-property/ reset-deassert-us;
++	};
++
++	aom_gbe1_phy: ethernet-phy@3 {
++		reg = <3>;
++		realtek,clkout-disable;
++	};
++};
++
++&enetc_port0 {
++	/delete-property/ phy-supply;
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_enetc0>;
++	phy-handle = <&aom_gbe1_phy>;
++	phy-mode = "rgmii-id";
++	status = "okay";
++};
++
++&enetc_port1 {
++	/delete-property/ phy-supply;
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl_aom_enetc1>;
++	phy-handle = <&aom_gbe0_phy>;
++	phy-mode = "rgmii-id";
++	status = "okay";
++};
++
++&enetc_port2 {
++	/delete-property/ phy-handle;
++	/delete-property/ phy-supply;
++	status = "disabled";
++};
++
++&scmi_iomuxc {
++	pinctrl_aom_enetc1: aomenetc1grp {
++		fsl,pins = <
++			IMX95_PAD_ENET2_TD3__NETCMIX_TOP_ETH1_RGMII_TD3		0x57e
++			IMX95_PAD_ENET2_TD2__NETCMIX_TOP_ETH1_RGMII_TD2		0x57e
++			IMX95_PAD_ENET2_TD1__NETCMIX_TOP_ETH1_RGMII_TD1		0x57e
++			IMX95_PAD_ENET2_TD0__NETCMIX_TOP_ETH1_RGMII_TD0		0x57e
++			IMX95_PAD_ENET2_TX_CTL__NETCMIX_TOP_ETH1_RGMII_TX_CTL	0x57e
++			IMX95_PAD_ENET2_TXC__NETCMIX_TOP_ETH1_RGMII_TX_CLK	0x58e
++			IMX95_PAD_ENET2_RX_CTL__NETCMIX_TOP_ETH1_RGMII_RX_CTL	0x57e
++			IMX95_PAD_ENET2_RXC__NETCMIX_TOP_ETH1_RGMII_RX_CLK	0x58e
++			IMX95_PAD_ENET2_RD0__NETCMIX_TOP_ETH1_RGMII_RD0		0x57e
++			IMX95_PAD_ENET2_RD1__NETCMIX_TOP_ETH1_RGMII_RD1		0x57e
++			IMX95_PAD_ENET2_RD2__NETCMIX_TOP_ETH1_RGMII_RD2		0x57e
++			IMX95_PAD_ENET2_RD3__NETCMIX_TOP_ETH1_RGMII_RD3		0x57e
++		>;
++	};
++};
++
++/*
++ * EVK-only parts that are not on the module or carrier. Disabling the
++ * I2C GPIO expanders stops the pca953x "Error reading output register"
++ * messages; the regulators they switched become plain fixed rails.
++ */
++&i2c3_gpio_expander_20 {
++	status = "disabled";
++};
++
++&i2c4_gpio_expander_21 {
++	status = "disabled";
++};
++
++&i2c5_pcal6408 {
++	status = "disabled";
++};
++
++&i2c6_pcal6416 {
++	status = "disabled";
++};
++
++&i2c7_pcal6524 {
++	status = "disabled";
++};
++
++&adp5585 {
++	status = "disabled";
++};
++
++&reg_audio_pwr {
++	/delete-property/ gpio;
++	/delete-property/ enable-active-high;
++};
++
++&reg_m2_pwr {
++	/delete-property/ gpio;
++	/delete-property/ enable-active-high;
++};
++
++&reg_pcie0 {
++	/delete-property/ gpio;
++	/delete-property/ enable-active-high;
++};
++
++&reg_slot_pwr {
++	/delete-property/ gpio;
++	/delete-property/ enable-active-high;
++};
++
++&reg_usb_vbus {
++	/delete-property/ gpio;
++	/delete-property/ enable-active-high;
++};
++
++&pcie0 {
++	/delete-property/ reset-gpio;
++};
++
++&pcie1 {
++	/delete-property/ reset-gpio;
++};
++
++/* GPIO_IO25/GPIO_IO27 are LCD1_BKLT_PWM / SW_RESET_OUT# on AOM-5521 */
++&flexcan2 {
++	status = "disabled";
++};
++
++&flexcan1_phy {
++	status = "disabled";
++};
++
++&flexcan2_phy {
++	status = "disabled";
++};
 diff --git a/board/nxp/imx95_evk/imx95_evk.c b/board/nxp/imx95_evk/imx95_evk.c
-index e81fb71c6cb..6c03a4c55cd 100644
+index b933946a479..53205b37b45 100644
 --- a/board/nxp/imx95_evk/imx95_evk.c
 +++ b/board/nxp/imx95_evk/imx95_evk.c
-@@ -27,9 +27,66 @@
+@@ -22,9 +22,66 @@
  #include <asm/arch/sys_proto.h>
  #include <dm/uclass.h>
  #include <dm/uclass-internal.h>
--
 +#include <net.h>
 +#include <spi_flash.h>
-+ 
+ 
  extern int board_fix_fdt_fuse(void *fdt);
  
 +/*
-++ * AOM-5521 keeps its MAC addresses in the module's SPI NOR. The
-++ * Advantech factory test tool ("[CONFIG] - [Ethernet0..2 MAC] setting") writes
-++ * one record per port into the FlexSPI NOR on the SMARC module, starting at
-++ * 0xd0000 (768 KiB + 8 x 8 KiB) and 1 KiB apart; each record begins with the
-++ * six MAC bytes, followed by the serial number and the manufacturing date.
-++ * The Yocto 5.2 U-Boot read them back the same way.
-++ *
-++ * Record N goes to ethNaddr, i.e. to the port behind alias ethernetN: eth0 is
-++ * GBE0 (PHY address 1, module schematic A201-2 sheet 20) and eth1 is GBE1
-++ * (PHY address 3, sheet 21), in U-Boot and in Linux alike.
-++ *
-++ * This runs before initr_net(), so the Ethernet devices pick the address up
-++ * from the environment when they probe, and fdt_fixup_ethernet() hands the
-++ * same address to the kernel. A record that is blank or not a valid unicast
-++ * address is ignored, leaving the fuse or random address the board would
-++ * otherwise use; the 5.2 fallback to one fixed address is not carried over,
-++ * since every unprogrammed board would then share it.
-++ */
++ * AOM-5521 keeps its MAC addresses in the module's SPI NOR. The
++ * Advantech factory test tool ("[CONFIG] - [Ethernet0..2 MAC] setting") writes
++ * one record per port into the FlexSPI NOR on the SMARC module, starting at
++ * 0xd0000 (768 KiB + 8 x 8 KiB) and 1 KiB apart; each record begins with the
++ * six MAC bytes, followed by the serial number and the manufacturing date.
++ * The Yocto 5.2 U-Boot read them back the same way.
++ *
++ * Record N goes to ethNaddr, i.e. to the port behind alias ethernetN: eth0 is
++ * GBE0 (enetc_port1, PHY address 1, module schematic sheet 20) and eth1 is
++ * GBE1 (enetc_port0, PHY address 3, sheet 21), in U-Boot and in Linux alike.
++ *
++ * This runs before initr_net(), so the Ethernet devices pick the address up
++ * from the environment when they probe, and fdt_fixup_ethernet() hands the
++ * same address to the kernel. A record that is blank or not a valid unicast
++ * address is ignored, leaving the fuse or random address the board would
++ * otherwise use; the 5.2 fallback to one fixed address is not carried over,
++ * since every unprogrammed board would then share it.
++ */
 +#define AOM5521_BCFG_OFFSET	0xd0000
 +#define AOM5521_BCFG_STRIDE	0x400
 +#define AOM5521_BCFG_PORTS	3
@@ -102,7 +287,7 @@ index e81fb71c6cb..6c03a4c55cd 100644
  #if CONFIG_IS_ENABLED(EFI_HAVE_CAPSULE_SUPPORT)
  #define IMX_BOOT_IMAGE_GUID \
  	EFI_GUID(0x2c4db6b3, 0x0b15, 0x4a36, 0xbe, 0xae, \
-@@ -50,6 +107,30 @@ struct efi_capsule_update_info update_info = {
+@@ -45,6 +102,30 @@ struct efi_capsule_update_info update_info = {
  };
  #endif /* EFI_HAVE_CAPSULE_SUPPORT */
  
@@ -133,7 +318,47 @@ index e81fb71c6cb..6c03a4c55cd 100644
  #ifdef CONFIG_USB_TCPC
  struct tcpc_port port;
  #ifdef CONFIG_TARGET_IMX95_15X15_EVK
-@@ -364,7 +445,7 @@ int board_init(void)
+@@ -187,7 +268,7 @@ int board_usb_cleanup(int index, enum usb_init_type init)
+ 	return ret;
+ }
+ 
+-static void netc_phy_rst(const char *gpio_name, const char *label)
++static void __maybe_unused netc_phy_rst(const char *gpio_name, const char *label)
+ {
+ 	int ret;
+ 	struct gpio_desc desc;
+@@ -250,25 +331,11 @@ void netc_init(void)
+ 	netc_phy_rst("gpio@22_4", "ENET1_RST_B");
+ 	netc_phy_rst("gpio@22_5", "ENET2_RST_B");
+ #else
+-	netc_phy_rst("i2c5_io@21_2", "ENET1_RST_B");
+-
+-	/* Enable in SW count */
+-	netc_regulator_enable("regulator-aqr-stby", true);
+-	netc_regulator_enable("regulator-mac-stby", true);
+-	netc_regulator_enable("regulator-aqr-en", true);
+-	netc_regulator_enable("regulator-mac-en", true);
+-
+-	/* Disable regulator to have explicit reset to AQR PHY and clock generator */
+-	udelay(10000);
+-	netc_regulator_enable("regulator-aqr-stby", false);
+-	netc_regulator_enable("regulator-mac-stby", false);
+-	netc_regulator_enable("regulator-aqr-en", false);
+-	netc_regulator_enable("regulator-mac-en", false);
+-
+-	udelay(10000);
+-	netc_regulator_enable("regulator-aqr-stby", true);
+-	netc_regulator_enable("regulator-mac-stby", true);
+-
++	/*
++	 * AOM-5521: the RTL8211FSI PHYs are reset by RESET_OUT_3V3# (POR_B)
++	 * and run from always-on rails. The EVK PHY reset expander and the
++	 * AQR/MAC regulators do not exist on the module.
++	 */
+ #endif
+ }
+ 
+@@ -359,7 +426,7 @@ int board_init(void)
  #endif
  
  #if IS_ENABLED(CONFIG_TARGET_IMX95_19X19_EVK)
@@ -142,7 +367,7 @@ index e81fb71c6cb..6c03a4c55cd 100644
  #endif
  
  	netc_init();
-@@ -419,6 +500,8 @@ int board_late_init(void)
+@@ -378,6 +445,8 @@ int board_late_init(void)
  	if (IS_ENABLED(CONFIG_ENV_IS_IN_MMC))
  		board_late_mmc_env_init();
  
@@ -151,8 +376,44 @@ index e81fb71c6cb..6c03a4c55cd 100644
  	env_set("sec_boot", "no");
  #ifdef CONFIG_AHAB_BOOT
  	env_set("sec_boot", "yes");
+@@ -545,8 +614,35 @@ static int board_fix_19x19_evk(void *fdt)
+ }
+ #endif
+ 
++/*
++ * AOM-5521 has no display on the EVK's MIPI-DSI -> ADV7535 path (its HDMI
++ * bridge is an LT9611UXC). Disable the EVK video pipeline so U-Boot does
++ * not try to probe it.
++ */
++static void aom5521_disable_display(void *fdt)
++{
++	int off, ret;
++
++	for (off = fdt_next_node(fdt, -1, NULL); off >= 0;
++	     off = fdt_next_node(fdt, off, NULL)) {
++		const char *name = fdt_get_name(fdt, off, NULL);
++
++		if ((!name || strncmp(name, "display-controller@4b400000", 27)) &&
++		    fdt_node_check_compatible(fdt, off, "adi,adv7535"))
++			continue;
++
++		ret = fdt_setprop_string(fdt, off, "status", "disabled");
++		if (ret == -FDT_ERR_NOSPACE && !fdt_increase_size(fdt, 512))
++			ret = fdt_setprop_string(fdt, off, "status", "disabled");
++		if (ret)
++			printf("%s: %s: %d\n", __func__, name, ret);
++	}
++}
++
+ int board_fix_fdt(void *fdt)
+ {
++	aom5521_disable_display(fdt);
++
+ 	/* Remove nodes based on fuses. */
+ 	board_fix_fdt_fuse(fdt);
+ 	
 diff --git a/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts b/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
-index 9f968feccef..b7079a3ed14 100644
+index 9f968feccef..7454492e00d 100644
 --- a/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
 +++ b/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
 @@ -145,6 +145,22 @@
@@ -206,7 +467,7 @@ index 9f968feccef..b7079a3ed14 100644
  	status = "okay";
  
 +	gpio_exp2: gpio@21 {
-+		compatible = "nxp,pcal6416";
++		compatible = "nxp,pca9535";
 +		reg = <0x21>;
 +		gpio-controller;
 +		#gpio-cells = <2>;
@@ -246,7 +507,7 @@ index 9f968feccef..b7079a3ed14 100644
  		fsl,pins = <
  			IMX95_PAD_ENET1_MDC__NETCMIX_TOP_NETC_MDC		0x50e
 diff --git a/include/configs/imx95_evk.h b/include/configs/imx95_evk.h
-index 2de348a1a76..29bbfb0af3b 100644
+index 2de348a1a76..1e3f35be519 100644
 --- a/include/configs/imx95_evk.h
 +++ b/include/configs/imx95_evk.h
 @@ -16,12 +16,9 @@
@@ -271,7 +532,3 @@ index 2de348a1a76..29bbfb0af3b 100644
  
 -#endif
 +#endif /* __IMX95_EVK_H */
-\ No newline at end of file
--- 
-2.43.0
-
