@@ -11,6 +11,7 @@ Supported Boards
  
 The following boards are supported by this layer:
 
+ * ECU-150-A1 4GB (`ecu150a1` NXP i.MX 8M)
  * ROM-2620-CD-A1 1GB (MACHINE=`rom2620-ed91` NXP i.MX 8ULP)
  * ROM-2820-CD-A1 2GB (`rom2820-ed93` NXP i.MX 93)
  * ROM-5620-WU-A1/A2 2GB (`rom5620-db5901` NXP i.MX 8QuadXPlus)

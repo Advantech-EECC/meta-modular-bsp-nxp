@@ -1,4 +1,3 @@
-commit ed47f9c077af47d088a889903eaa3139e059bcc4 (origin/scarthgap-dev)
 Author: F. Aragon <francisco.aragon@advantech.de>
 Date:   Thu Apr 17 18:45:03 2025 +0200
 
@@ -21,17 +20,16 @@ Date:   Thu Apr 17 18:45:03 2025 +0200
             include/configs/imx8mq_evk.h
 
 Updates:
+	Date:	Wed Oct 28 19:50:00 2026 +0100
 
-	Date:   Wed Jun 4 17:32:09 2025 +0800
-
-	    NXP update for Yocto 5.2 (walnascar) - lf-6.12.20-2.0.0
+	    ecu150 and rom5720 unification refactor
 
 Observation: ad hoc patch
 Upstream-Status: Inappropriate [other]
 Signed-off-by: F. Aragon <francisco.aragon@advantech.de>
 
 diff --git a/arch/arm/dts/imx8mq-evk-u-boot.dtsi b/arch/arm/dts/imx8mq-evk-u-boot.dtsi
-index badb2699972..af494aacf6a 100644
+index badb2699972..91bd4b0afc6 100644
 --- a/arch/arm/dts/imx8mq-evk-u-boot.dtsi
 +++ b/arch/arm/dts/imx8mq-evk-u-boot.dtsi
 @@ -27,6 +27,12 @@
@@ -47,40 +45,11 @@ index badb2699972..af494aacf6a 100644
  &ethphy0 {
  	reset-assert-us = <15000>;
  	reset-deassert-us = <100000>;
-@@ -60,11 +66,10 @@
- };
- 
- &usb_dwc3_0 {
--	dr_mode = "otg";
-+	dr_mode = "host";
- 	hnp-disable;
- 	srp-disable;
- 	adp-disable;
--	usb-role-switch;
- 	snps,dis-u1-entry-quirk;
- 	snps,dis-u2-entry-quirk;
- 	status = "okay";
-diff --git a/board/nxp/imx8mq_evk/Makefile b/board/nxp/imx8mq_evk/Makefile
-index 63b7248b56a..eb9f272f2c1 100644
---- a/board/nxp/imx8mq_evk/Makefile
-+++ b/board/nxp/imx8mq_evk/Makefile
-@@ -8,9 +8,6 @@ obj-y += imx8mq_evk.o
- 
- ifdef CONFIG_XPL_BUILD
- obj-y += spl.o
--ifdef CONFIG_IMX8MQ_4GB_DDR_TIMING
--obj-$(CONFIG_IMX8M_LPDDR4) += lpddr4_timing_4g.o
--else
--obj-$(CONFIG_IMX8M_LPDDR4) += lpddr4_timing_b0.o lpddr4_timing.o
--endif
-+obj-$(CONFIG_IMX8M_LPDDR4) += lpddr4_timing_rom5720a1_2G.o
-+obj-$(CONFIG_IMX8M_LPDDR4) += lpddr4_timing_b0.o
- endif
 diff --git a/board/nxp/imx8mq_evk/imx8mq_evk.env b/board/nxp/imx8mq_evk/imx8mq_evk.env
-index e15b9e0cda8..b585b4c971f 100644
+index 2bc82db830f..6586f7e2996 100644
 --- a/board/nxp/imx8mq_evk/imx8mq_evk.env
 +++ b/board/nxp/imx8mq_evk/imx8mq_evk.env
-@@ -44,12 +44,12 @@ sr_ir_v2_cmd=cp.b ${fdtcontroladdr} ${fdt_addr_r} 0x10000;
+@@ -46,12 +46,12 @@ sr_ir_v2_cmd=setenv opteeoverlay no;cp.b ${fdtcontroladdr} ${fdt_addr_r} 0x10000
  	for i in ${nodes}; do fdt rm ${i}; done
  
  jh_clk=
@@ -95,51 +64,10 @@ index e15b9e0cda8..b585b4c971f 100644
  mmcargs=setenv bootargs ${jh_clk} ${mcore_clk} console=${console} root=${mmcroot}
  loadimage=fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${image}
  loadfdt=fatload mmc ${mmcdev}:${mmcpart} ${fdt_addr_r} ${fdtfile}
-diff --git a/configs/imx8mq_wevk_defconfig b/configs/imx8mq_wevk_defconfig
-index fc66702a905..42055f3b5b4 100644
---- a/configs/imx8mq_wevk_defconfig
-+++ b/configs/imx8mq_wevk_defconfig
-@@ -36,7 +36,7 @@ CONFIG_FIT_EXTERNAL_OFFSET=0x3000
- CONFIG_SPL_LOAD_FIT=y
- CONFIG_OF_SYSTEM_SETUP=y
- CONFIG_BOOTCOMMAND="run sr_ir_v2_cmd;bootflow scan -lb; run bsp_bootcmd"
--CONFIG_DEFAULT_FDT_FILE="imx8mq-evk.dtb"
-+CONFIG_DEFAULT_FDT_FILE="rom5720-db5901.dtb"
- CONFIG_SYS_PBSIZE=1050
- CONFIG_BOARD_EARLY_INIT_F=y
- CONFIG_BOARD_LATE_INIT=y
-@@ -120,7 +120,10 @@ CONFIG_PHYLIB=y
- CONFIG_PHY_ATHEROS=y
- CONFIG_PHY_REALTEK=y
- CONFIG_PHY_GIGE=y
-+CONFIG_PHY_MARVELL=y
-+CONFIG_DM_ETH=y
- CONFIG_DM_ETH_PHY=y
-+CONFIG_DM_MDIO=y
- CONFIG_FEC_MXC=y
- CONFIG_MII=y
- CONFIG_PHY=y
-@@ -191,6 +194,6 @@ CONFIG_EFI_ESRT=y
- CONFIG_EFI_HAVE_CAPSULE_UPDATE=y
- CONFIG_FIT_SIGNATURE=y
- 
--CONFIG_IMX8MQ_4GB_DDR_TIMING=y
-+CONFIG_IMX8MQ_4GB_DDR_TIMING=n
- 
- CONFIG_BOOTDEV_ETH=n
 diff --git a/dts/upstream/src/arm64/freescale/imx8mq-evk.dts b/dts/upstream/src/arm64/freescale/imx8mq-evk.dts
-index a87d0692c3b..d929c65310f 100644
+index a87d0692c3b..458f570a6e0 100644
 --- a/dts/upstream/src/arm64/freescale/imx8mq-evk.dts
 +++ b/dts/upstream/src/arm64/freescale/imx8mq-evk.dts
-@@ -18,7 +18,7 @@
- 
- 	memory@40000000 {
- 		device_type = "memory";
--		reg = <0x00000000 0x40000000 0 0xc0000000>;
-+		reg = <0x00000000 0x40000000 0 0x80000000>;
- 	};
- 
- 	pcie0_refclk: pcie0-refclk {
 @@ -216,11 +216,12 @@
  		#size-cells = <0>;
  
@@ -162,18 +90,3 @@ index a87d0692c3b..d929c65310f 100644
  		reg = <0x8>;
  
  		regulators {
-diff --git a/include/configs/imx8mq_evk.h b/include/configs/imx8mq_evk.h
-index 00dcc4faf17..c481ae81953 100644
---- a/include/configs/imx8mq_evk.h
-+++ b/include/configs/imx8mq_evk.h
-@@ -34,9 +34,7 @@
- 
- #define CFG_SYS_SDRAM_BASE           0x40000000
- #define PHYS_SDRAM                      0x40000000
--#define PHYS_SDRAM_SIZE			0xC0000000 /* 3GB DDR */
--#define PHYS_SDRAM_2			0x100000000
--#define PHYS_SDRAM_2_SIZE		0x40000000 /* 1GB */
-+#define PHYS_SDRAM_SIZE			0x80000000 /* 2GB DDR */
- 
- #define CFG_MXC_UART_BASE		UART_BASE_ADDR(1)
- 
