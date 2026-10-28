@@ -1,5 +1,11 @@
-DESCRIPTION = "OPTEE OS"
+EXTRA_OEMAKE:append:rom5720-db5901 = " \
+    CFG_DDR_SIZE=0x80000000 \
+"
 
-FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
-
-SRC_URI:append:rom5720-db5901 = " file://0001-optee-rom5720.patch "
+EXTRA_OEMAKE:append:ecu150a1 = " \
+    CFG_DDR_SIZE=0x100000000 \
+    CFG_TZDRAM_START=0xfe000000 \
+    CFG_TZDRAM_SIZE=0x01e00000 \
+    CFG_CORE_LARGE_PHYS_ADDR=y \
+    CFG_CORE_ARM64_PA_BITS=36 \
+"

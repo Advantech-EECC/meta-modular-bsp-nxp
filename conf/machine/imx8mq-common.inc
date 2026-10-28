@@ -1,0 +1,10 @@
+
+require conf/machine/imx8mq-lpddr4-wevk.conf
+
+KERNEL_DEVICETREE_BASENAME = "${MACHINE}"
+
+EVK_KERNEL_DEVICETREES := "${KERNEL_DEVICETREE}"
+KERNEL_DEVICETREE:remove = "${EVK_KERNEL_DEVICETREES}"
+KERNEL_DEVICETREE:append = " ./freescale/${KERNEL_DEVICETREE_BASENAME}.dtb"
+
+UBOOT_DTB_NAME = "imx8mq-evk.dtb"
