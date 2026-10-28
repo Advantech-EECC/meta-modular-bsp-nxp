@@ -1,0 +1,86 @@
+Author: F. Aragon <francisco.aragon@advantech.de>
+Date:   Thu Apr 17 18:45:03 2025 +0200
+
+    add support for rom-5720 2G (imx8mq)
+
+    MP: pass
+    MQ: issues with suspend to RAM, external watchdog
+
+    Changes from:
+    - https://github.com/ADVANTECH-Corp/uboot-imx - imx8LBVD0075 / adv_v2023.04_6.1.22-2.0.0
+         lpddr4_timing_rom5720a1_2G.c
+         lpddr4_timing_b0.c
+    - https://github.com/ADVANTECH-Corp/linux-imx.git - imx8LBVD0075
+         imx8mq-rom5720-a1.dts as rom5721-db5901.dts
+    - https://github.com/nxp-imx/uboot-imx - lf_v2024.04
+         recipes-bsp/u-boot/u-boot-imx/rom5720-db5901/0001-minimal-differences.patch
+            From changes in files:
+            arch/arm/dts/imx8mq-evk.dts
+            board/freescale/imx8mq_evk/Makefile
+            include/configs/imx8mq_evk.h
+
+Updates:
+	Date:	Wed Oct 28 19:50:00 2026 +0100
+
+	    ecu150 and rom5720 unification refactor
+
+Observation: ad hoc patch
+Upstream-Status: Inappropriate [other]
+Signed-off-by: F. Aragon <francisco.aragon@advantech.de>
+
+diff --git a/arch/arm/dts/imx8mq-evk.dts b/arch/arm/dts/imx8mq-evk.dts
+index 632a83b5d0e..7ba0625e21d 100644
+--- a/arch/arm/dts/imx8mq-evk.dts
++++ b/arch/arm/dts/imx8mq-evk.dts
+@@ -27,7 +27,8 @@
+ 
+ 	memory@40000000 {
+ 		device_type = "memory";
+-		reg = <0x00000000 0x40000000 0 0xc0000000>;
++		reg = <0x00000000 0x40000000 0 0xc0000000>,
++		      <0x00000001 0x00000000 0 0x40000000>;
+ 	};
+ 
+ 	pcie0_refclk: pcie0-refclk {
+diff --git a/board/freescale/imx8mq_evk/Makefile b/board/freescale/imx8mq_evk/Makefile
+index fd260bb1ec4..a46caf77393 100644
+--- a/board/freescale/imx8mq_evk/Makefile
++++ b/board/freescale/imx8mq_evk/Makefile
+@@ -8,9 +8,5 @@ obj-y += imx8mq_evk.o
+ 
+ ifdef CONFIG_SPL_BUILD
+ obj-y += spl.o
+-ifdef CONFIG_IMX8MQ_4GB_DDR_TIMING
+ obj-$(CONFIG_IMX8M_LPDDR4) += lpddr4_timing_4g.o
+-else
+-obj-$(CONFIG_IMX8M_LPDDR4) += lpddr4_timing_b0.o lpddr4_timing.o
+-endif
+ endif
+diff --git a/board/freescale/imx8mq_evk/spl.c b/board/freescale/imx8mq_evk/spl.c
+index c7775c326fc..1dfc8633f48 100644
+--- a/board/freescale/imx8mq_evk/spl.c
++++ b/board/freescale/imx8mq_evk/spl.c
+@@ -41,22 +41,7 @@ extern struct dram_timing_info dram_timing_4g;
+ 
+ static void spl_dram_init(void)
+ {
+-	/* Check PCA6416A IO EXP on 4GB WEVK only */
+-#if IS_ENABLED(CONFIG_IMX8MQ_4GB_DDR_TIMING)
+-	I2C_SET_BUS(2);
+-	if (!i2c_probe(0x20)) {
+-		ddr_init(&dram_timing_4g);
+-		return;
+-	} else {
+-		panic("Fail to detect WEVK board but 4GB DDR is enabled\n");
+-	}
+-#else
+-	/* ddr init */
+-	if (soc_rev() >= CHIP_REV_2_1)
+-		ddr_init(&dram_timing);
+-	else
+-		ddr_init(&dram_timing_b0);
+-#endif
++	ddr_init(&dram_timing_4g);
+ }
+ 
+ #define I2C_PAD_CTRL	(PAD_CTL_DSE6 | PAD_CTL_HYS | PAD_CTL_PUE)

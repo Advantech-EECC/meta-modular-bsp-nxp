@@ -11,16 +11,17 @@ Supported Boards
 
 The following boards are supported by this layer:
 
+ * ECU-150-A1 4GB (`ecu150a1` NXP i.MX 8M)
  * ROM-2620 (`rom2620-ed91` NXP i.MX 8ULP)
  * ROM-2820 (`rom2820-ed93` NXP i.MX 93)
- * ROM-5722 (`rom5722-db2510` NXP i.MX 8M Plus)
- * RSB-3720 (`rsb3720` NXP i.MX 8M Plus)
- * AOM-5521 A1 (`aom5521a1` NXP i.MX 95)
+ * ROM-5721 2GB (`rom5721-db5901` NXP i.MX 8M Mini)
+ * ROM-5722 6GB (`rom5722-db2510` NXP i.MX 8M Plus)
+ * RSB-3720 6GB (`rsb3720` NXP i.MX 8M Plus)
+ * AOM-5521-A1 (`aom5521a1` NXP i.MX 95)
 
 Preliminary support:
 
- * ROM-5720 (`rom5720-db5901` NXP i.MX 8M)
- * ROM-5721 (`rom5721-db5901` NXP i.MX 8M Mini)
+ * ROM-5720 2GB (`rom5720-db5901` NXP i.MX 8M)
 
 
 Supported Linux Features

@@ -1,0 +1,48 @@
+Author: F. Aragon <francisco.aragon@advantech.de>
+Date:   Thu Apr 17 18:45:03 2025 +0200
+
+    add support for rom-5720 2G (imx8mq)
+
+    MP: pass
+    MQ: issues with suspend to RAM, external watchdog
+
+    Changes from:
+    - https://github.com/ADVANTECH-Corp/uboot-imx - imx8LBVD0075 / adv_v2023.04_6.1.22-2.0.0
+         lpddr4_timing_rom5720a1_2G.c
+         lpddr4_timing_b0.c
+    - https://github.com/ADVANTECH-Corp/linux-imx.git - imx8LBVD0075
+         imx8mq-rom5720-a1.dts as rom5721-db5901.dts
+    - https://github.com/nxp-imx/uboot-imx - lf_v2024.04
+         recipes-bsp/u-boot/u-boot-imx/rom5720-db5901/0001-minimal-differences.patch
+            From changes in files:
+            arch/arm/dts/imx8mq-evk.dts
+            board/freescale/imx8mq_evk/Makefile
+            include/configs/imx8mq_evk.h
+
+Updates:
+	Date:	Wed Oct 28 19:50:00 2026 +0100
+
+	    ecu150 and rom5720 unification refactor
+
+Observation: ad hoc patch
+Upstream-Status: Inappropriate [other]
+Signed-off-by: F. Aragon <francisco.aragon@advantech.de>
+
+diff --git a/arch/arm/dts/imx8mq-evk.dts b/arch/arm/dts/imx8mq-evk.dts
+index 632a83b5d0e..2267da15c4e 100644
+--- a/arch/arm/dts/imx8mq-evk.dts
++++ b/arch/arm/dts/imx8mq-evk.dts
+@@ -211,11 +211,12 @@
+ 
+ 		ethphy0: ethernet-phy@0 {
+ 			compatible = "ethernet-phy-ieee802.3-c22";
+-			reg = <0>;
++			reg = <4>;
+ 			reset-gpios = <&gpio1 9 GPIO_ACTIVE_LOW>;
+ 			reset-assert-us = <15000>;
+ 			reset-deassert-us = <100000>;
+ 			qca,disable-smarteee;
++			eee-broken-1000t;
+ 			vddio-supply = <&vddh>;
+ 
+ 			vddh: vddh-regulator {
