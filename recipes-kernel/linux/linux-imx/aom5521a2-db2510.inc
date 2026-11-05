@@ -1,5 +1,6 @@
 require common/docker.inc
 require common/watchdog_advantech.inc
+require common/tpm-st33htpm.inc
 
 SRC_URI += " \
     file://${KERNEL_DEVICETREE_BASENAME}.dts;subdir=arch/arm64/boot/dts/freescale \
@@ -32,7 +33,7 @@ SRC_URI += " \
     file://${KERNEL_DEVICETREE_BASENAME}-gpiokey.dtsi;subdir=arch/arm64/boot/dts/freescale \
     file://${KERNEL_DEVICETREE_BASENAME}-flexspi1-nor-flash.dtsi;subdir=arch/arm64/boot/dts/freescale \
     file://${KERNEL_DEVICETREE_BASENAME}-lpuart5-m2.dtsi;subdir=arch/arm64/boot/dts/freescale \
-    file://${KERNEL_DEVICETREE_BASENAME}-st33htpm.dtsi;subdir=arch/arm64/boot/dts/freescale \
+    file://${KERNEL_DEVICETREE_BASENAME}-st33ktpm.dtsi;subdir=arch/arm64/boot/dts/freescale \
     file://${KERNEL_DEVICETREE_BASENAME}-dsi-auog101uan02.dtsi;subdir=arch/arm64/boot/dts/freescale \
     file://${KERNEL_DEVICETREE_BASENAME}-difference.dtsi;subdir=arch/arm64/boot/dts/freescale \
     file://${KERNEL_DEVICETREE_BASENAME}-sound-sgtl5000.dtsi;subdir=arch/arm64/boot/dts/freescale \

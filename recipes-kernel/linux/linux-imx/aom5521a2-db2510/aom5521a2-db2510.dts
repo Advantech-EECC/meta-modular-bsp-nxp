@@ -41,6 +41,6 @@
 #include "aom5521a2-db2510-wdt-msp430.dtsi"
 #include "aom5521a2-db2510-sound-sgtl5000.dtsi"
 #include "aom5521a2-db2510-i2c-eeprom.dtsi"
-#include "aom5521a2-db2510-st33htpm.dtsi"
+#include "aom5521a2-db2510-st33ktpm.dtsi"
 #include "aom5521a2-db2510-gpiokey.dtsi"
 #include "aom5521a2-db2510-cam-ov5640.dtsi"
