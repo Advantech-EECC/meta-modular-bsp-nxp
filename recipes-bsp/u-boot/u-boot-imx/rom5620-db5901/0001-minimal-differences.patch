@@ -1,6 +1,48 @@
+From e854295302a6e35f93a7042eda3226e5af6fb72e Mon Sep 17 00:00:00 2001
+From: Mikhail Tsukerman <miketsukerman@advantech.com>
+Date: Wed, 18 Nov 2026 13:06:17 +0100
+Subject: [PATCH] imx8qxp_mek: adapt to Advantech ROM-5620 A1/A2
+
+Minimal set of changes to run the i.MX8QXP MEK U-Boot on the
+Advantech ROM-5620 A1/A2 module.
+
+Device tree:
+- rename the model to "NXP i.MX8QXP ROM-5620 A1/A2"
+- run usdhc2 (SD) at 3.3 V only (no-1-8-v, no UHS modes) and ignore
+  the write-protect line (disable-wp)
+- move the mPCIe 3V3 enable to pca9557_a pin 0 and the USB OTG1 VBUS
+  enable to GPIO4_IO03 (active low)
+- add the virtual I2C mux binding to the i2cswitch@71 node
+- drop the MEK-only board aliases, the MIPI-DSI/LVDS I2C buses and
+  LDB1 nodes, and the FEC1 PHY reset GPIO
+- mark pcieb as needed in SPL
+
+Board code:
+- power CAAM JR3 in SPL when CONFIG_DUAL_BOOTLOADER is set
+- set up the RTL8211F PHY: LED configuration and RGMII TX/RX delays
+- drive the external watchdog trigger (ADC_IN4 / GPIO1_IO14) high
+- read the debug UART select pin (SAI0_RXD / GPIO0_IO27) and, when it
+  is low, disable the kernel console and earlycon
+- take the default kernel DTB name from CONFIG_DEFAULT_FDT_FILE
+
+Configuration:
+- 8 DRAM banks, environment at offset 0x400000
+- treat SD card detect as broken (CONFIG_MMC_BROKEN_CD)
+- fastboot on USB controller 0
+- enable the part command and random UUID support
+
 Observation: ad hoc patch
 Upstream-Status: Inappropriate [other]
+
 Signed-off-by: F. Aragon <francisco.aragon@advantech.de>
+Signed-off-by: Mikhail Tsukerman <miketsukerman@gmail.com>
+---
+ arch/arm/dts/fsl-imx8qxp-mek-u-boot.dtsi |  10 ++
+ arch/arm/dts/fsl-imx8qxp-mek.dts         |  32 +++++--
+ board/nxp/imx8qxp_mek/imx8qxp_mek.c      | 116 ++++++++++++++++++++++-
+ board/nxp/imx8qxp_mek/imximage.cfg       |   4 +-
+ configs/imx8qxp_mek_defconfig            |  11 ++-
+ 5 files changed, 160 insertions(+), 13 deletions(-)
 
 diff --git a/arch/arm/dts/fsl-imx8qxp-mek-u-boot.dtsi b/arch/arm/dts/fsl-imx8qxp-mek-u-boot.dtsi
 index ad460944e7a..d7d46003521 100644
@@ -40,7 +82,7 @@ index ad460944e7a..d7d46003521 100644
  	vddio0: vddio-regulator {
  		regulator-name = "VDDIO";
 diff --git a/arch/arm/dts/fsl-imx8qxp-mek.dts b/arch/arm/dts/fsl-imx8qxp-mek.dts
-index 0e955dd3ee2..5e24da37947 100644
+index 0e955dd3ee2..ec1c58c1a09 100644
 --- a/arch/arm/dts/fsl-imx8qxp-mek.dts
 +++ b/arch/arm/dts/fsl-imx8qxp-mek.dts
 @@ -7,11 +7,16 @@
@@ -78,16 +120,17 @@ index 0e955dd3ee2..5e24da37947 100644
  			enable-active-high;
  			regulator-always-on;
  		};
-@@ -56,7 +62,7 @@
+@@ -56,8 +62,7 @@
  			regulator-name = "usb_otg1_vbus";
  			regulator-min-microvolt = <5000000>;
  			regulator-max-microvolt = <5000000>;
 -			gpio = <&pca9557_b 2 GPIO_ACTIVE_HIGH>;
+-			enable-active-high;
 +			gpio = <&gpio4 3 GPIO_ACTIVE_LOW>;
- 			enable-active-high;
  		};
  
-@@ -191,7 +197,7 @@
+ 	};
+@@ -191,7 +196,7 @@
  				SC_P_QSPI0B_SS1_B_LSIO_QSPI0B_SS1_B	0x06000021
  			>;
  		};
@@ -96,7 +139,7 @@ index 0e955dd3ee2..5e24da37947 100644
  		pinctrl_i2c0_mipi_lvds0: mipi_lvds0_i2c0_grp {
  			fsl,pins = <
  				SC_P_MIPI_DSI0_I2C0_SCL_MIPI_DSI0_I2C0_SCL 0xc6000020
-@@ -205,6 +211,7 @@
+@@ -205,6 +210,7 @@
  				SC_P_MIPI_DSI1_I2C0_SDA_MIPI_DSI1_I2C0_SDA 0xc6000020
  			>;
  		};
@@ -104,7 +147,7 @@ index 0e955dd3ee2..5e24da37947 100644
  	};
  };
  
-@@ -256,8 +263,9 @@
+@@ -256,8 +262,9 @@
  	status = "okay";
  
  	i2cswitch@71 {
@@ -115,7 +158,7 @@ index 0e955dd3ee2..5e24da37947 100644
  		u-boot,i2c-offset-len = <0>;
  		#address-cells = <1>;
  		#size-cells = <0>;
-@@ -301,6 +309,7 @@
+@@ -301,6 +308,7 @@
  	};
  };
  
@@ -123,7 +166,7 @@ index 0e955dd3ee2..5e24da37947 100644
  &i2c0_mipi_lvds0 {
  	#address-cells = <1>;
  	#size-cells = <0>;
-@@ -332,6 +341,7 @@
+@@ -332,6 +340,7 @@
  	clock-frequency = <100000>;
  	status = "okay";
  };
@@ -131,7 +174,7 @@ index 0e955dd3ee2..5e24da37947 100644
  
  &usdhc1 {
  	pinctrl-names = "default", "state_100mhz", "state_200mhz";
-@@ -350,8 +360,15 @@
+@@ -350,8 +359,15 @@
  	pinctrl-2 = <&pinctrl_usdhc2>, <&pinctrl_usdhc2_gpio>;
  	bus-width = <4>;
  	cd-gpios = <&gpio4 22 GPIO_ACTIVE_LOW>;
@@ -147,7 +190,7 @@ index 0e955dd3ee2..5e24da37947 100644
  	status = "okay";
  };
  
-@@ -372,9 +389,11 @@
+@@ -372,9 +388,11 @@
  	fsl,ar8031-phy-fixup;
  	fsl,magic-packet;
  	status = "okay";
@@ -159,7 +202,7 @@ index 0e955dd3ee2..5e24da37947 100644
  
  	mdio {
  		#address-cells = <1>;
-@@ -419,6 +438,7 @@
+@@ -419,6 +437,7 @@
  	status = "okay";
  };
  
@@ -167,16 +210,16 @@ index 0e955dd3ee2..5e24da37947 100644
  &ldb1_phy {
  	status = "okay";
  };
-@@ -456,3 +476,4 @@
+@@ -456,3 +475,4 @@
  		};
  	};
  };
 +#endif
 diff --git a/board/nxp/imx8qxp_mek/imx8qxp_mek.c b/board/nxp/imx8qxp_mek/imx8qxp_mek.c
-index 281e8962b89..54eb8636b3a 100644
+index f3d81042ad1..9e6a66149b8 100644
 --- a/board/nxp/imx8qxp_mek/imx8qxp_mek.c
 +++ b/board/nxp/imx8qxp_mek/imx8qxp_mek.c
-@@ -63,6 +63,14 @@ int board_early_init_f(void)
+@@ -68,6 +68,14 @@ int board_early_init_f(void)
  
  	setup_iomux_uart();
  
@@ -191,132 +234,33 @@ index 281e8962b89..54eb8636b3a 100644
  	return 0;
  }
  
-@@ -89,6 +97,136 @@ static void board_gpio_init(void)
+@@ -94,6 +102,37 @@ static void board_gpio_init(void)
  static inline void board_gpio_init(void) {}
  #endif
  
 +#if IS_ENABLED(CONFIG_FEC_MXC)
 +#include <miiphy.h>
 +
-+#ifndef CONFIG_DM_ETH
-+static iomux_cfg_t pad_enet1[] = {
-+	SC_P_SPDIF0_TX | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_SPDIF0_RX | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ESAI0_TX3_RX2 | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ESAI0_TX2_RX3 | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ESAI0_TX1 | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ESAI0_TX0 | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ESAI0_SCKR | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ESAI0_TX4_RX1 | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ESAI0_TX5_RX0 | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ESAI0_FST  | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ESAI0_SCKT | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ESAI0_FSR  | MUX_MODE_ALT(3) | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+
-+	/* Shared MDIO */
-+	SC_P_ENET0_MDC | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ENET0_MDIO | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+};
-+
-+static iomux_cfg_t pad_enet0[] = {
-+	SC_P_ENET0_RGMII_RX_CTL | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ENET0_RGMII_RXD0 | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ENET0_RGMII_RXD1 | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ENET0_RGMII_RXD2 | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ENET0_RGMII_RXD3 | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ENET0_RGMII_RXC | MUX_PAD_CTRL(ENET_INPUT_PAD_CTRL),
-+	SC_P_ENET0_RGMII_TX_CTL | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ENET0_RGMII_TXD0 | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ENET0_RGMII_TXD1 | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ENET0_RGMII_TXD2 | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ENET0_RGMII_TXD3 | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ENET0_RGMII_TXC | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+
-+	/* Shared MDIO */
-+	SC_P_ENET0_MDC | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+	SC_P_ENET0_MDIO | MUX_PAD_CTRL(ENET_NORMAL_PAD_CTRL),
-+};
-+
-+static void setup_iomux_fec(void)
-+{
-+	if (0 == CONFIG_FEC_ENET_DEV)
-+		imx8_iomux_setup_multiple_pads(pad_enet0, ARRAY_SIZE(pad_enet0));
-+	else
-+		imx8_iomux_setup_multiple_pads(pad_enet1, ARRAY_SIZE(pad_enet1));
-+}
-+
-+static void enet_device_phy_reset(void)
-+{
-+	struct gpio_desc desc;
-+	int ret;
-+
-+	/* The BB_PER_RST_B will reset the ENET1 PHY */
-+	if (0 == CONFIG_FEC_ENET_DEV) {
-+		ret = dm_gpio_lookup_name("gpio@1a_4", &desc);
-+		if (ret)
-+			return;
-+
-+		ret = dm_gpio_request(&desc, "enet0_reset");
-+		if (ret)
-+			return;
-+
-+		dm_gpio_set_dir_flags(&desc, GPIOD_IS_OUT);
-+		dm_gpio_set_value(&desc, 0);
-+		udelay(50);
-+		dm_gpio_set_value(&desc, 1);
-+	}
-+
-+	/* The board has a long delay for this reset to become stable */
-+	mdelay(200);
-+}
-+
-+int board_eth_init(bd_t *bis)
-+{
-+	int ret;
-+	struct power_domain pd;
-+
-+	printf("[%s] %d\n", __func__, __LINE__);
-+
-+	/* Reset ENET PHY */
-+	enet_device_phy_reset();
-+
-+	if (CONFIG_FEC_ENET_DEV) {
-+		if (!power_domain_lookup_name("conn_enet1", &pd))
-+			power_domain_on(&pd);
-+	} else {
-+		if (!power_domain_lookup_name("conn_enet0", &pd))
-+			power_domain_on(&pd);
-+	}
-+
-+	setup_iomux_fec();
-+
-+	ret = fecmxc_initialize_multi(bis, CONFIG_FEC_ENET_DEV,
-+		CONFIG_FEC_MXC_PHYADDR, IMX_FEC_BASE);
-+	if (ret)
-+		printf("FEC1 MXC: %s:failed\n", __func__);
-+
-+	return ret;
-+}
-+#endif
-+
 +int board_phy_config(struct phy_device *phydev)
 +{
-+	unsigned short val;
++	int val;
 +
-+        phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x0d04);
-+        phy_write(phydev, MDIO_DEVAD_NONE, 0x10, 0xa050);
-+        phy_write(phydev, MDIO_DEVAD_NONE, 0x11, 0x0000);
-+        phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x0000);
++	/* RTL8211F page 0xd04: LED configuration */
++	phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x0d04);
++	phy_write(phydev, MDIO_DEVAD_NONE, 0x10, 0xa050);
++	phy_write(phydev, MDIO_DEVAD_NONE, 0x11, 0x0000);
 +
-+        phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x0d08);
-+        val = phy_read(phydev, MDIO_DEVAD_NONE, 0x11);
-+        val |= (0x1 << 8);//enable TX delay
-+        phy_write(phydev, MDIO_DEVAD_NONE, 0x11, val);
++	/* RTL8211F page 0xd08: enable RGMII TX and RX delays */
++	phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x0d08);
++	val = phy_read(phydev, MDIO_DEVAD_NONE, 0x11);
++	if (val >= 0)
++		phy_write(phydev, MDIO_DEVAD_NONE, 0x11, val | BIT(8));
 +
-+        val = phy_read(phydev, MDIO_DEVAD_NONE, 0x15);
-+        val |= (0x1 << 3);//enable RX delay
-+        phy_write(phydev, MDIO_DEVAD_NONE, 0x15, val);
-+        phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x0000);
++	val = phy_read(phydev, MDIO_DEVAD_NONE, 0x15);
++	if (val >= 0)
++		phy_write(phydev, MDIO_DEVAD_NONE, 0x15, val | BIT(3));
++
++	phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x0000);
 +
 +	if (phydev->drv->config)
 +		phydev->drv->config(phydev);
@@ -328,7 +272,7 @@ index 281e8962b89..54eb8636b3a 100644
  int checkboard(void)
  {
  #ifdef CONFIG_TARGET_IMX8DX_MEK
-@@ -207,6 +345,37 @@ int board_usb_cleanup(int index, enum usb_init_type init)
+@@ -212,6 +251,37 @@ int board_usb_cleanup(int index, enum usb_init_type init)
  }
  #endif
  
@@ -339,7 +283,7 @@ index 281e8962b89..54eb8636b3a 100644
 +static void setup_iomux_wdt(void)
 +{
 +	int ret;
-+	struct gpio_desc desc;
++	struct gpio_desc desc = {};
 +	struct udevice *dev;
 +
 +	imx8_iomux_setup_multiple_pads(wdt_trig, ARRAY_SIZE(wdt_trig));
@@ -366,7 +310,7 @@ index 281e8962b89..54eb8636b3a 100644
  int board_init(void)
  {
  	board_gpio_init();
-@@ -224,6 +393,7 @@ int board_init(void)
+@@ -229,6 +299,7 @@ int board_init(void)
  	}
  #endif
  
@@ -374,7 +318,7 @@ index 281e8962b89..54eb8636b3a 100644
  	return 0;
  }
  
-@@ -257,6 +427,47 @@ int ft_board_setup(void *blob, struct bd_info *bd)
+@@ -298,6 +369,46 @@ static void setup_eth_mac_if_empty(int dev_id, const char *envname)
  }
  #endif
  
@@ -384,35 +328,34 @@ index 281e8962b89..54eb8636b3a 100644
 +
 +static void debug_uart_sel(void)
 +{
-+	int value = -1;
++	int value;
 +	int ret;
-+	struct gpio_desc desc;
++	struct gpio_desc desc = {};
 +	struct udevice *dev;
 +
 +	imx8_iomux_setup_multiple_pads(debug_uart_sel_gpio, ARRAY_SIZE(debug_uart_sel_gpio));
 +
-+        ret = uclass_get_device_by_seq(UCLASS_GPIO, 0, &dev);
-+        if (ret) {
-+                printf("%s failed to find GPIO0 device, ret = %d\n", __func__, ret);
-+                return;
-+        }
++	ret = uclass_get_device_by_seq(UCLASS_GPIO, 0, &dev);
++	if (ret) {
++		printf("%s failed to find GPIO0 device, ret = %d\n", __func__, ret);
++		return;
++	}
 +
-+        desc.dev = dev;
-+        desc.offset = 27;
++	desc.dev = dev;
++	desc.offset = 27;
 +
-+        ret = dm_gpio_request(&desc, "debug_uart_sel");
-+        if (ret) {
-+                printf("%s request debug_uart_sel failed ret = %d\n", __func__, ret);
-+                return;
-+        }
++	ret = dm_gpio_request(&desc, "debug_uart_sel");
++	if (ret) {
++		printf("%s request debug_uart_sel failed ret = %d\n", __func__, ret);
++		return;
++	}
 +
 +	dm_gpio_set_dir_flags(&desc, GPIOD_IS_IN);
-+
-+        value = dm_gpio_get_value(&desc);
++	value = dm_gpio_get_value(&desc);
++	dm_gpio_free(dev, &desc);
 +
 +	/* High: enable debug log. Low: disable debug log. */
-+	if(value == 0)
-+	{
++	if (value == 0) {
 +		env_set("console", "disabled");
 +		env_set("earlycon", "disabled");
 +		env_set("mmcargs", "setenv bootargs console=${console},${baudrate} earlycon=${earlycon},${baudrate} root=${mmcroot}");
@@ -422,7 +365,7 @@ index 281e8962b89..54eb8636b3a 100644
  int board_late_init(void)
  {
  	char *fdt_file;
-@@ -286,12 +497,12 @@ int board_late_init(void)
+@@ -327,12 +438,12 @@ int board_late_init(void)
  		if (m4_booted)
  			env_set("fdt_file", "imx8dx-mek-rpmsg.dtb");
  		else
@@ -437,8 +380,8 @@ index 281e8962b89..54eb8636b3a 100644
  #endif
  	}
  
-@@ -299,6 +510,7 @@ int board_late_init(void)
- 	board_late_mmc_env_init();
+@@ -344,6 +455,7 @@ int board_late_init(void)
+ 	setup_eth_mac_if_empty(0, "ethaddr");
  #endif
  
 +	debug_uart_sel();
@@ -461,10 +404,10 @@ index 88d6955a9ef..f7f806d982c 100644
  SOC_TYPE IMX8QX
  /* Append seco container image */
 diff --git a/configs/imx8qxp_mek_defconfig b/configs/imx8qxp_mek_defconfig
-index f46fd1cfe1e..50ac171ea66 100644
+index f46fd1cfe1e..225ac1f4b85 100644
 --- a/configs/imx8qxp_mek_defconfig
 +++ b/configs/imx8qxp_mek_defconfig
-@@ -8,11 +8,11 @@ CONFIG_SYS_MEMTEST_END=0xB0000000
+@@ -8,13 +8,14 @@ CONFIG_SYS_MEMTEST_END=0xB0000000
  CONFIG_SPL_GPIO=y
  CONFIG_SPL_LIBCOMMON_SUPPORT=y
  CONFIG_SPL_LIBGENERIC_SUPPORT=y
@@ -477,8 +420,11 @@ index f46fd1cfe1e..50ac171ea66 100644
 +CONFIG_ENV_OFFSET=0x400000
  CONFIG_DM_GPIO=y
  CONFIG_DEFAULT_DEVICE_TREE="fsl-imx8qxp-mek"
++CONFIG_DEFAULT_FDT_FILE="imx8qxp-mek.dtb"
  CONFIG_TARGET_IMX8QXP_MEK=y
-@@ -99,6 +99,7 @@ CONFIG_FSL_USDHC=y
+ CONFIG_SPL_MMC=y
+ CONFIG_SPL_EFI_PARTITION=n
+@@ -99,6 +100,7 @@ CONFIG_FSL_USDHC=y
  CONFIG_MMC_IO_VOLTAGE=y
  CONFIG_MMC_UHS_SUPPORT=y
  CONFIG_MMC_HS400_SUPPORT=y
@@ -486,7 +432,7 @@ index f46fd1cfe1e..50ac171ea66 100644
  CONFIG_EFI_PARTITION=y
  CONFIG_PHYLIB=y
  CONFIG_PHY_ADDR_ENABLE=y
-@@ -182,7 +183,7 @@ CONFIG_FASTBOOT_UUU_SUPPORT=y
+@@ -182,7 +184,7 @@ CONFIG_FASTBOOT_UUU_SUPPORT=y
  CONFIG_FASTBOOT_BUF_ADDR=0x82800000
  CONFIG_FASTBOOT_BUF_SIZE=0x40000000
  CONFIG_FASTBOOT_FLASH=y
@@ -495,10 +441,13 @@ index f46fd1cfe1e..50ac171ea66 100644
  
  CONFIG_SYS_I2C_IMX_VIRT_I2C=y
  CONFIG_I2C_MUX_IMX_VIRT=y
-@@ -215,3 +216,6 @@ CONFIG_SYS_WHITE_ON_BLACK=y
+@@ -215,3 +217,6 @@ CONFIG_SYS_WHITE_ON_BLACK=y
  CONFIG_SPLASH_SCREEN=y
  CONFIG_SPLASH_SCREEN_ALIGN=y
  CONFIG_CMD_BMP=y
 +
 +CONFIG_CMD_PART=y
 +CONFIG_RANDOM_UUID=y
+-- 
+2.53.0
+
