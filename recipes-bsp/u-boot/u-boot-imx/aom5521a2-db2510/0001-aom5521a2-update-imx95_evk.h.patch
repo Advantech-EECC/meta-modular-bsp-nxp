@@ -1,5 +1,5 @@
 From f66d6e4d78d8f25da5fc4b0cad7d294ef0f57fe8 Mon Sep 17 00:00:00 2001
-From: Mikhail Tsukerman <miketsukerman@gmail.com>
+From: Mikhail Tsukerman <miketsukerman@advantech.com>
 Date: Thu, 1 Oct 2026 15:04:12 +0200
 Subject: [PATCH] imx95: AOM-5521 on SOM-DB2510 board support
 
@@ -411,7 +411,7 @@ index b933946a479..53205b37b45 100644
 +
  	/* Remove nodes based on fuses. */
  	board_fix_fdt_fuse(fdt);
- 	
+ 
 diff --git a/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts b/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
 index 9f968feccef..7454492e00d 100644
 --- a/dts/upstream/src/arm64/freescale/imx95-19x19-evk.dts
