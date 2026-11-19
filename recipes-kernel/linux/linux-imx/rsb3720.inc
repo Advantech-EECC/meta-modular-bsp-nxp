@@ -1,5 +1,6 @@
 require common/watchdog_advantech.inc
 require common/rtc-s35390a.inc
+require common/tpm-st33htpm.inc
 
 SRC_URI += " \
     file://rsb3720.dtsi;subdir=arch/arm64/boot/dts/freescale \

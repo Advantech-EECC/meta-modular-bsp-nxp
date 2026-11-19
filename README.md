@@ -4,7 +4,7 @@ Advantech BSP for NXP based boards
 This reference BSP adds minimalistic changes to the NXP layers to support Advantech boards. Note that some boards may have only limited features with this BSP. However, more features can be added in another layer on top of this layer.
 
 For build instructions, check the [README.md in the Advantech fork of the NXP imx-manifest repository](https://github.com/Advantech-EECC/imx-manifest), which adds manifests including this layer.
-
+ 
 
 Supported Boards
 ================

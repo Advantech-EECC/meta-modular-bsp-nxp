@@ -434,8 +434,8 @@
 		status = "okay";
 	};
 
-	st33htpi: st33htpi@2e {
-		compatible = "st,st33htpm-i2c";
+	st33htpi: tpm@2e {
+		compatible = "st,st33htpm-i2c", "tcg,tpm-tis-i2c";
 		reg = <0x2e>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_tpm>;

@@ -3,6 +3,7 @@ SRC_URI += " \
     file://rsb3720-u-boot.dtsi;subdir=arch/arm/dts \
     file://rsb3720.dts;subdir=dts/upstream/src/arm64/freescale \
     file://001-change-uart-mapping.patch \
+	file://enable-i2c-level-translator.patch \
 "
 
 do_configure:prepend() {
