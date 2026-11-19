@@ -1,4 +1,4 @@
-From e854295302a6e35f93a7042eda3226e5af6fb72e Mon Sep 17 00:00:00 2001
+From 16a2f52de1d7b3001b22dfdca4d20f3cafd8c149 Mon Sep 17 00:00:00 2001
 From: Mikhail Tsukerman <miketsukerman@advantech.com>
 Date: Wed, 18 Nov 2026 13:06:17 +0100
 Subject: [PATCH] imx8qxp_mek: adapt to Advantech ROM-5620 A1/A2
@@ -37,12 +37,12 @@ Upstream-Status: Inappropriate [other]
 Signed-off-by: F. Aragon <francisco.aragon@advantech.de>
 Signed-off-by: Mikhail Tsukerman <miketsukerman@gmail.com>
 ---
- arch/arm/dts/fsl-imx8qxp-mek-u-boot.dtsi |  10 ++
+ arch/arm/dts/fsl-imx8qxp-mek-u-boot.dtsi |  10 +++
  arch/arm/dts/fsl-imx8qxp-mek.dts         |  32 +++++--
- board/nxp/imx8qxp_mek/imx8qxp_mek.c      | 116 ++++++++++++++++++++++-
+ board/nxp/imx8qxp_mek/imx8qxp_mek.c      | 108 ++++++++++++++++++++++-
  board/nxp/imx8qxp_mek/imximage.cfg       |   4 +-
  configs/imx8qxp_mek_defconfig            |  11 ++-
- 5 files changed, 160 insertions(+), 13 deletions(-)
+ 5 files changed, 152 insertions(+), 13 deletions(-)
 
 diff --git a/arch/arm/dts/fsl-imx8qxp-mek-u-boot.dtsi b/arch/arm/dts/fsl-imx8qxp-mek-u-boot.dtsi
 index ad460944e7a..d7d46003521 100644
@@ -216,7 +216,7 @@ index 0e955dd3ee2..ec1c58c1a09 100644
  };
 +#endif
 diff --git a/board/nxp/imx8qxp_mek/imx8qxp_mek.c b/board/nxp/imx8qxp_mek/imx8qxp_mek.c
-index f3d81042ad1..9e6a66149b8 100644
+index f3d81042ad1..b41b1cf5b0d 100644
 --- a/board/nxp/imx8qxp_mek/imx8qxp_mek.c
 +++ b/board/nxp/imx8qxp_mek/imx8qxp_mek.c
 @@ -68,6 +68,14 @@ int board_early_init_f(void)
@@ -272,7 +272,7 @@ index f3d81042ad1..9e6a66149b8 100644
  int checkboard(void)
  {
  #ifdef CONFIG_TARGET_IMX8DX_MEK
-@@ -212,6 +251,37 @@ int board_usb_cleanup(int index, enum usb_init_type init)
+@@ -212,6 +251,33 @@ int board_usb_cleanup(int index, enum usb_init_type init)
  }
  #endif
  
@@ -282,20 +282,16 @@ index f3d81042ad1..9e6a66149b8 100644
 +
 +static void setup_iomux_wdt(void)
 +{
++	struct gpio_desc desc;
 +	int ret;
-+	struct gpio_desc desc = {};
-+	struct udevice *dev;
 +
 +	imx8_iomux_setup_multiple_pads(wdt_trig, ARRAY_SIZE(wdt_trig));
 +
-+	ret = uclass_get_device_by_seq(UCLASS_GPIO, 1, &dev);
++	ret = dm_gpio_lookup_name("GPIO1_14", &desc);
 +	if (ret) {
-+		printf("%s failed to find GPIO1 device, ret = %d\n", __func__, ret);
++		printf("%s failed to find GPIO1_14, ret = %d\n", __func__, ret);
 +		return;
 +	}
-+
-+	desc.dev = dev;
-+	desc.offset = 14;
 +
 +	ret = dm_gpio_request(&desc, "wdt_trig");
 +	if (ret) {
@@ -310,7 +306,7 @@ index f3d81042ad1..9e6a66149b8 100644
  int board_init(void)
  {
  	board_gpio_init();
-@@ -229,6 +299,7 @@ int board_init(void)
+@@ -229,6 +295,7 @@ int board_init(void)
  	}
  #endif
  
@@ -318,7 +314,7 @@ index f3d81042ad1..9e6a66149b8 100644
  	return 0;
  }
  
-@@ -298,6 +369,46 @@ static void setup_eth_mac_if_empty(int dev_id, const char *envname)
+@@ -298,6 +365,42 @@ static void setup_eth_mac_if_empty(int dev_id, const char *envname)
  }
  #endif
  
@@ -328,31 +324,27 @@ index f3d81042ad1..9e6a66149b8 100644
 +
 +static void debug_uart_sel(void)
 +{
++	struct gpio_desc desc;
 +	int value;
 +	int ret;
-+	struct gpio_desc desc = {};
-+	struct udevice *dev;
 +
 +	imx8_iomux_setup_multiple_pads(debug_uart_sel_gpio, ARRAY_SIZE(debug_uart_sel_gpio));
 +
-+	ret = uclass_get_device_by_seq(UCLASS_GPIO, 0, &dev);
++	ret = dm_gpio_lookup_name("GPIO0_27", &desc);
 +	if (ret) {
-+		printf("%s failed to find GPIO0 device, ret = %d\n", __func__, ret);
++		printf("%s failed to find GPIO0_27, ret = %d\n", __func__, ret);
 +		return;
 +	}
 +
-+	desc.dev = dev;
-+	desc.offset = 27;
-+
 +	ret = dm_gpio_request(&desc, "debug_uart_sel");
 +	if (ret) {
-+		printf("%s request debug_uart_sel failed ret = %d\n", __func__, ret);
++		printf("%s request failed, ret = %d\n", __func__, ret);
 +		return;
 +	}
 +
 +	dm_gpio_set_dir_flags(&desc, GPIOD_IS_IN);
 +	value = dm_gpio_get_value(&desc);
-+	dm_gpio_free(dev, &desc);
++	dm_gpio_free(desc.dev, &desc);
 +
 +	/* High: enable debug log. Low: disable debug log. */
 +	if (value == 0) {
@@ -365,7 +357,7 @@ index f3d81042ad1..9e6a66149b8 100644
  int board_late_init(void)
  {
  	char *fdt_file;
-@@ -327,12 +438,12 @@ int board_late_init(void)
+@@ -327,12 +430,12 @@ int board_late_init(void)
  		if (m4_booted)
  			env_set("fdt_file", "imx8dx-mek-rpmsg.dtb");
  		else
@@ -380,7 +372,7 @@ index f3d81042ad1..9e6a66149b8 100644
  #endif
  	}
  
-@@ -344,6 +455,7 @@ int board_late_init(void)
+@@ -344,6 +447,7 @@ int board_late_init(void)
  	setup_eth_mac_if_empty(0, "ethaddr");
  #endif
  
