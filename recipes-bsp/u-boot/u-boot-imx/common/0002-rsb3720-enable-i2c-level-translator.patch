@@ -1,0 +1,42 @@
+From 54591515f983293be91f5412dbd8f3607912efac Mon Sep 17 00:00:00 2001
+From: Mikhail Tsukerman <miketsukerman@advantech.com>
+Date: Thu, 12 Nov 2026 15:21:00 +0100
+Subject: [PATCH] imx8mp_evk: enable PCA9450 I2C level translator in SPL
+
+On RSB-3720 the S-35390A RTC on I2C1 sits behind the PCA9450 I2C level
+translator. U-Boot leaves the translator in its reset state, and Linux
+enables it only when the pca9450 driver probes (nxp,i2c-lt-enable), a
+few milliseconds before the RTC on the same bus probes. The first RTC
+access then fails ("error resetting chip", -EIO) and rtc0 is never
+registered.
+
+Enable the translator in RUN and STANDBY (the value Linux writes) in
+power_init_board(), so it is stable long before the kernel starts.
+
+Upstream-Status: Inappropriate [board-specific, RSB-3720 on imx8mp_evk board code]
+Signed-off-by: Mikhail Tsukerman <miketsukerman@advantech.com>
+---
+ board/freescale/imx8mp_evk/spl.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/board/freescale/imx8mp_evk/spl.c b/board/freescale/imx8mp_evk/spl.c
+index 165a8cf585f..ab496234478 100644
+--- a/board/freescale/imx8mp_evk/spl.c
++++ b/board/freescale/imx8mp_evk/spl.c
+@@ -117,6 +117,13 @@ int power_init_board(void)
+ 	pmic_reg_write(dev, PCA9450_BUCK6OUT, 0x18);
+ #endif
+ 
++	/*
++	 * Keep the I2C level translator enabled in RUN and STANDBY before
++	 * Linux probes devices behind it.
++	 */
++	pmic_clrsetbits(dev, PCA9450_CONFIG2, 0x03, 0x01);
++
++
+ 	return 0;
+ }
+ #endif
+-- 
+2.53.0
+
